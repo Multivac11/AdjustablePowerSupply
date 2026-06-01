@@ -1,9 +1,19 @@
 set(src_dirs
-    test
+    device
+    device/i2c_device
+    device/i2c_device/sht40
+    device/spi_device
+    device/spi_device/sd_card
+    temperature_monitor
 )
 
 set(include_dirs
-    test
+    device
+    device/i2c_device
+    device/i2c_device/sht40
+    device/spi_device
+    device/spi_device/sd_card
+    temperature_monitor
 )
 
 set(required_components
@@ -18,6 +28,7 @@ set(required_components
     spiffs
     nvs_flash
     lwip
+    fatfs
 )
 
 idf_component_register(
