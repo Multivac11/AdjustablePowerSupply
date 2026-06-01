@@ -19,6 +19,7 @@ bool I2CBusManager::Init()
         return false;
     }
     ESP_LOGI(TAG, "Bus init OK");
+
     return true;
 }
 
@@ -53,5 +54,53 @@ bool I2CBusManager::RegisterSHT40(uint16_t addr)
 
     devices_.push_back(std::move(dev));
     ESP_LOGI(TAG, "SHT40 registered at 0x%02X", addr);
+    return true;
+}
+
+bool I2CBusManager::RegisterMP4201(uint16_t addr)
+{
+    for (const auto& dev : devices_)
+    {
+        auto* i2c = static_cast<I2CDevice*>(dev.get());
+        if (i2c->GetAddress() == addr)
+        {
+            ESP_LOGE(TAG, "Device already registered at 0x%02X", addr);
+            return false;
+        }
+    }
+
+    auto dev = std::make_unique<MP4201>(bus_handle_, addr);
+    if (!dev->Init())
+    {
+        ESP_LOGE(TAG, "MP4201 init failed at 0x%02X", addr);
+        return false;
+    }
+
+    devices_.push_back(std::move(dev));
+    ESP_LOGI(TAG, "MP4201 registered at 0x%02X", addr);
+    return true;
+}
+
+bool I2CBusManager::RegisterMCP4725(uint16_t addr)
+{
+    for (const auto& dev : devices_)
+    {
+        auto* i2c = static_cast<I2CDevice*>(dev.get());
+        if (i2c->GetAddress() == addr)
+        {
+            ESP_LOGE(TAG, "Device already registered at 0x%02X", addr);
+            return false;
+        }
+    }
+
+    auto dev = std::make_unique<MCP4725>(bus_handle_, addr);
+    if (!dev->Init())
+    {
+        ESP_LOGE(TAG, "MCP4725 init failed at 0x%02X", addr);
+        return false;
+    }
+
+    devices_.push_back(std::move(dev));
+    ESP_LOGI(TAG, "MCP4725 registered at 0x%02X", addr);
     return true;
 }

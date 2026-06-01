@@ -5,6 +5,8 @@
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "i2c_device.h"
+#include "mcp4725/mcp4725.h"
+#include "mp4201/mp4201.h"
 #include "sht40.h"
 
 #define I2C_MASTER_SCL_IO GPIO_NUM_8
@@ -26,6 +28,10 @@ class I2CBusManager
     void Deinit();
 
     bool RegisterSHT40(uint16_t addr);
+
+    bool RegisterMP4201(uint16_t addr);
+
+    bool RegisterMCP4725(uint16_t addr);
 
     template <typename T>
     T* GetDeviceByAddr(uint16_t addr)

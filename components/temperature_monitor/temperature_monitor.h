@@ -28,7 +28,7 @@ class TemperatureMonitor
 
     bool TemperatureMonitorInit();
 
-    static void TemperatureMonitorTask(void *);
+    static void TemperatureMonitorTask(void *pvParameters);
 
     void Monitor();
 
