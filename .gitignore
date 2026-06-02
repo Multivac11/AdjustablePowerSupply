@@ -4,6 +4,8 @@
 .LSOverride
 
 .vscode/
+.devcontainer/
+.claude/
 
 # Directory metadata
 .directory
