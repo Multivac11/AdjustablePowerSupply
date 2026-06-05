@@ -8,6 +8,7 @@ set(src_dirs
     device/spi_device/sd_card
     temperature_monitor
     adjustable_psu
+    perf_monitor
 )
 
 set(include_dirs
@@ -20,6 +21,7 @@ set(include_dirs
     device/spi_device/sd_card
     temperature_monitor
     adjustable_psu
+    perf_monitor
 )
 
 set(required_components

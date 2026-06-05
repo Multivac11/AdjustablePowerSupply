@@ -1,12 +1,13 @@
 #pragma once
+
 #include <memory>
 #include <vector>
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "i2c_device.h"
-#include "mcp4725/mcp4725.h"
-#include "mp4201/mp4201.h"
+#include "mcp4725.h"
+#include "mp4201.h"
 #include "sht40.h"
 
 #define I2C_MASTER_SCL_IO GPIO_NUM_8

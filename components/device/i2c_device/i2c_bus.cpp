@@ -4,14 +4,11 @@ static const char* TAG = "I2C";
 
 bool I2CBusManager::Init()
 {
-    i2c_master_bus_config_t bus_config = {.i2c_port = I2C_MASTER_NUM,
-                                          .sda_io_num = I2C_MASTER_SDA_IO,
-                                          .scl_io_num = I2C_MASTER_SCL_IO,
-                                          .clk_source = I2C_CLK_SRC_DEFAULT,
-                                          .glitch_ignore_cnt = 7,
-                                          .intr_priority = 0,
-                                          .trans_queue_depth = 0,
-                                          .flags = {.enable_internal_pullup = false, .allow_pd = false}};
+    i2c_master_bus_config_t bus_config = {};
+    bus_config.i2c_port = I2C_MASTER_NUM, bus_config.sda_io_num = I2C_MASTER_SDA_IO,
+    bus_config.scl_io_num = I2C_MASTER_SCL_IO, bus_config.clk_source = I2C_CLK_SRC_DEFAULT,
+    bus_config.glitch_ignore_cnt = 7, bus_config.intr_priority = 0, bus_config.trans_queue_depth = 0,
+    bus_config.flags = {.enable_internal_pullup = false, .allow_pd = false};
 
     if (i2c_new_master_bus(&bus_config, &bus_handle_) != ESP_OK)
     {
