@@ -10,6 +10,7 @@ set(src_dirs
     adjustable_psu
     perf_monitor
     key
+    buzzer
 )
 
 set(include_dirs
@@ -24,6 +25,7 @@ set(include_dirs
     adjustable_psu
     perf_monitor
     key
+    buzzer
 )
 
 set(required_components

@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "adjustable_psu.h"
+#include "buzzer.h"
 #include "device_init.h"
 #include "key.h"
 #include "perf_monitor.h"
@@ -13,4 +14,5 @@ extern "C" void app_main(void)
     TemperatureMonitor::GetInstance().TemperatureMonitorInit();
     AdjustablePSU::GetInstance().AdjustablePSUInit();
     PerfMonitor::GetInstance().Init();
+    Buzzer::GetInstance().Init();
 }
