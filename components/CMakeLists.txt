@@ -9,6 +9,7 @@ set(src_dirs
     temperature_monitor
     adjustable_psu
     perf_monitor
+    key
 )
 
 set(include_dirs
@@ -22,6 +23,7 @@ set(include_dirs
     temperature_monitor
     adjustable_psu
     perf_monitor
+    key
 )
 
 set(required_components

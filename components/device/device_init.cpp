@@ -35,11 +35,11 @@ void DeviceInit::Init()
         ESP_LOGE(TAG, "MCP4725 MODE (0x61) register failed");
     }
 
-    if (!SPIBusManager::GetInstance().Init())
-    {
-        ESP_LOGE(TAG, "SPI bus init failed");
-        return;
-    }
+    // if (!SPIBusManager::GetInstance().Init())
+    // {
+    //     ESP_LOGE(TAG, "SPI bus init failed");
+    //     return;
+    // }
 
     ESP_LOGI(TAG, "Init device successfull!");
 }
