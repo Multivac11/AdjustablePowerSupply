@@ -11,6 +11,7 @@ set(src_dirs
     perf_monitor
     key
     buzzer
+    display
 )
 
 set(include_dirs
@@ -26,6 +27,7 @@ set(include_dirs
     perf_monitor
     key
     buzzer
+    display
 )
 
 set(required_components
@@ -33,7 +35,9 @@ set(required_components
     esp_timer
     esp_driver_i2c
     esp_driver_spi
+    esp_lcd
     esp_adc
+    esp_lcd_st7701
     esp_event
     esp_wifi
     esp_http_server
