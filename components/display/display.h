@@ -34,13 +34,10 @@ class Display
         lcd_color_rgb_pixel_format_t px_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
     };
 
-    static Display& GetInstance()
-    {
-        static Display instance;
-        return instance;
-    }
+    Display() = default;
 
     bool Init(const Config& cfg);
+    bool Init();  // 使用默认 Config
 
     // 获取帧缓冲（驱动分配，直接写像素 RGB565）
     uint16_t* GetFramebuffer() { return (uint16_t*)fb_back_; }
@@ -57,10 +54,9 @@ class Display
     int GetWidth() const { return width_; }
     int GetHeight() const { return height_; }
 
-   private:
-    Display() = default;
     ~Display();
 
+   private:
     bool InitPanel(const Config& cfg);
 
     static bool OnRefreshDone(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t* edata, void* user_ctx);

@@ -21,69 +21,86 @@
 #define GFX_DARK 0x4208
 #define GFX_ORANGE 0xFD20
 
-// 软件图形驱动层 — 提供画点、画线、画圆、写字符串等绘图原语
-// 所有函数直接操作帧缓冲 (RGB565, w*h 像素)，不依赖具体硬件
+// 软件图形驱动层 — 封装 Display 硬件驱动，提供画点、画线、画圆、写字符串等绘图原语
+//
+// 使用方式：
+//   DisplayGFX gfx(display);
+//   gfx.SetRotation(Rotation::k90);  // 逆时针旋转 90°
+//   gfx.FillRect(10, 10, 100, 50, GFX_RED);
+//   gfx.DrawString(10, 10, "Hello", GFX_WHITE, GFX_BLACK);
+//
+// 同时保留静态方法用于直接操作帧缓冲（无旋转，原始物理坐标）。
+enum class Rotation
+{
+    k0 = 0,
+    k90 = 90,    // 逆时针 90°
+    k180 = 180,
+    k270 = 270   // 逆时针 270°（等价于顺时针 90°）
+};
+
 class DisplayGFX
 {
    public:
-    // ====== 基础绘图原语 ======
+    explicit DisplayGFX(Display& display) : display_(display) {}
 
-    // 画像素点（自动边界裁剪）
+    // ====== 屏幕旋转 ======
+
+    void SetRotation(Rotation rot);
+    Rotation GetRotation() const { return rotation_; }
+
+    // 逻辑宽高（自动跟随旋转交换）
+    int GetWidth() const;
+    int GetHeight() const;
+
+    // ====== 实例方法（推荐）— 自动应用旋转、自动获取帧缓冲和尺寸 ======
+
+    void DrawPixel(int x, int y, uint16_t color);
+    void DrawHLine(int x, int y, int len, uint16_t color);
+    void DrawVLine(int x, int y, int len, uint16_t color);
+    void DrawLine(int x0, int y0, int x1, int y1, uint16_t color);
+    void DrawRect(int x, int y, int rw, int rh, uint16_t color);
+    void FillRect(int x, int y, int rw, int rh, uint16_t color);
+    void DrawCircle(int cx, int cy, int r, uint16_t color);
+    void FillCircle(int cx, int cy, int r, uint16_t color);
+
+    // 绘制 ASCII 字符（6×8 点阵，码点 0x20–0x7F）
+    // bg == color 时背景透明
+    void DrawChar(int x, int y, char ch, uint16_t color, uint16_t bg);
+    void DrawString(int x, int y, const char* str, uint16_t color, uint16_t bg);
+
+    // ====== 静态方法 — 直接操作帧缓冲 ======
+
     static void DrawPixel(uint16_t* fb, int w, int h, int x, int y, uint16_t color);
-
-    // 水平线（比 DrawLine 快，内部无乘法）
     static void DrawHLine(uint16_t* fb, int w, int h, int x, int y, int len, uint16_t color);
-
-    // 垂直线
     static void DrawVLine(uint16_t* fb, int w, int h, int x, int y, int len, uint16_t color);
-
-    // 任意直线 (Bresenham 算法)
     static void DrawLine(uint16_t* fb, int w, int h, int x0, int y0, int x1, int y1, uint16_t color);
-
-    // 矩形边框
     static void DrawRect(uint16_t* fb, int w, int h, int x, int y, int rw, int rh, uint16_t color);
-
-    // 填充矩形
     static void FillRect(uint16_t* fb, int w, int h, int x, int y, int rw, int rh, uint16_t color);
-
-    // 圆形边框 (Midpoint 算法)
     static void DrawCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
-
-    // 填充圆形
     static void FillCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
 
-    // ====== 文字渲染 ======
+    static constexpr int kFontWidth = 6;
+    static constexpr int kFontHeight = 8;
 
-    static constexpr int kFontWidth = 6;   // 字符宽度（像素）
-    static constexpr int kFontHeight = 8;  // 字符高度（像素）
-
-    // 绘制单个 ASCII 字符（6×8 点阵，码点 0x20–0x7F）
-    // bg 为 GFX_TRANSPARENT (0xFFFF) 时不绘制背景
     static void DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, uint16_t color, uint16_t bg);
-
-    // 绘制字符串（不支持中文，不自动换行，超出屏幕部分被裁剪）
     static void DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, uint16_t color, uint16_t bg);
 
     // ====== 测试程序 ======
 
-    // 十球物理碰撞 + 中心引力井
-    static void TestBallCollision(Display& display);
+    void TestFont();
+    void TestBallCollision();
+    void TestStarfield();
+    void TestCubeRotation();
+    void TestColorSquares();
+    void TestAll();  // 依次运行全部测试
 
-    // 星空视差（十字星芒）
-    static void TestStarfield(Display& display);
-
-    // 双立方体交织旋转 + 色彩循环
-    static void TestCubeRotation(Display& display);
-
-    // 多彩方块碰撞混战
-    static void TestColorSquares(Display& display);
-
-    // 字体展示测试 — 显示全部可打印 ASCII 字符
-    static void TestFont(Display& display);
-
-    // 运行全部测试
-    static void TestAll(Display& display);
+    Display& GetDisplay() { return display_; }
 
    private:
-    DisplayGFX() = default;
+    void MapToPhysical(int lx, int ly, int* px, int* py) const;
+    int HwWidth() const { return display_.GetWidth(); }
+    int HwHeight() const { return display_.GetHeight(); }
+
+    Display& display_;
+    Rotation rotation_ = Rotation::k0;
 };

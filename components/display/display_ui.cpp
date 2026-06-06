@@ -1,15 +1,14 @@
 #include "display_ui.h"
 
-#include "display_gfx.h"
-
 static const char* TAG = "DisplayUI";
 
 void DisplayUI::Init()
 {
-    Display::GetInstance().Init({});
+    display_.Init();
+    gfx_.SetRotation(Rotation::k270);
 
     // 运行 GFX 层自带测试动画
-    DisplayGFX::TestAll(Display::GetInstance());
+    gfx_.TestAll();
 
     xTaskCreatePinnedToCore(DisplayUITask, "DisplayUITask", 8192, this, 2, nullptr, 1);
 

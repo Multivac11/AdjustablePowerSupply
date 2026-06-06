@@ -285,12 +285,201 @@ void DisplayGFX::DrawString(uint16_t* fb, int w, int h, int x, int y, const char
     }
 }
 
-// ====== 测试程序 ======
+// ====== 旋转 / 坐标映射 ======
 
-// 十球物理碰撞 + 中心引力井
-void DisplayGFX::TestBallCollision(Display& display)
+void DisplayGFX::SetRotation(Rotation rot)
 {
-    int w = display.GetWidth(), h = display.GetHeight();
+    rotation_ = rot;
+}
+
+int DisplayGFX::GetWidth() const
+{
+    return (rotation_ == Rotation::k90 || rotation_ == Rotation::k270) ? HwHeight() : HwWidth();
+}
+
+int DisplayGFX::GetHeight() const
+{
+    return (rotation_ == Rotation::k90 || rotation_ == Rotation::k270) ? HwWidth() : HwHeight();
+}
+
+void DisplayGFX::MapToPhysical(int lx, int ly, int* px, int* py) const
+{
+    switch (rotation_)
+    {
+        default:
+        case Rotation::k0:
+            *px = lx;
+            *py = ly;
+            break;
+        case Rotation::k90:
+            // 逆时针 90°: 物理右边缘 → 逻辑上边缘, 物理上边缘 → 逻辑左边缘
+            *px = HwWidth() - 1 - ly;
+            *py = lx;
+            break;
+        case Rotation::k180:
+            *px = HwWidth() - 1 - lx;
+            *py = HwHeight() - 1 - ly;
+            break;
+        case Rotation::k270:
+            // 逆时针 270°: 物理左边缘 → 逻辑上边缘, 物理下边缘 → 逻辑左边缘
+            *px = ly;
+            *py = HwHeight() - 1 - lx;
+            break;
+    }
+}
+
+// ====== 实例方法（自动应用旋转） ======
+
+void DisplayGFX::DrawPixel(int x, int y, uint16_t color)
+{
+    if (rotation_ == Rotation::k0)
+    {
+        DrawPixel(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, color);
+        return;
+    }
+    int px, py;
+    MapToPhysical(x, y, &px, &py);
+    DrawPixel(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, color);
+}
+
+void DisplayGFX::DrawHLine(int x, int y, int len, uint16_t color)
+{
+    if (len <= 0) return;
+    if (rotation_ == Rotation::k0)
+    {
+        DrawHLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, len, color);
+        return;
+    }
+    // 旋转时映射首尾端点后走 Bresenham（90° 时自动退化为垂直线）
+    int px0, py0, px1, py1;
+    MapToPhysical(x, y, &px0, &py0);
+    MapToPhysical(x + len - 1, y, &px1, &py1);
+    DrawLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), px0, py0, px1, py1, color);
+}
+
+void DisplayGFX::DrawVLine(int x, int y, int len, uint16_t color)
+{
+    if (len <= 0) return;
+    if (rotation_ == Rotation::k0)
+    {
+        DrawVLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, len, color);
+        return;
+    }
+    int px0, py0, px1, py1;
+    MapToPhysical(x, y, &px0, &py0);
+    MapToPhysical(x, y + len - 1, &px1, &py1);
+    DrawLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), px0, py0, px1, py1, color);
+}
+
+void DisplayGFX::DrawLine(int x0, int y0, int x1, int y1, uint16_t color)
+{
+    if (rotation_ == Rotation::k0)
+    {
+        DrawLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), x0, y0, x1, y1, color);
+        return;
+    }
+    int px0, py0, px1, py1;
+    MapToPhysical(x0, y0, &px0, &py0);
+    MapToPhysical(x1, y1, &px1, &py1);
+    DrawLine(display_.GetFramebuffer(), HwWidth(), HwHeight(), px0, py0, px1, py1, color);
+}
+
+void DisplayGFX::DrawRect(int x, int y, int rw, int rh, uint16_t color)
+{
+    if (rw <= 0 || rh <= 0) return;
+    switch (rotation_)
+    {
+        case Rotation::k0:
+            DrawRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, rw, rh, color);
+            break;
+        case Rotation::k90:
+            DrawRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), HwWidth() - y - rh, x, rh, rw, color);
+            break;
+        case Rotation::k180:
+            DrawRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), HwWidth() - x - rw, HwHeight() - y - rh, rw, rh,
+                     color);
+            break;
+        case Rotation::k270:
+            DrawRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), y, HwHeight() - x - rw, rh, rw, color);
+            break;
+    }
+}
+
+void DisplayGFX::FillRect(int x, int y, int rw, int rh, uint16_t color)
+{
+    if (rw <= 0 || rh <= 0) return;
+    switch (rotation_)
+    {
+        case Rotation::k0:
+            FillRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, rw, rh, color);
+            break;
+        case Rotation::k90:
+            FillRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), HwWidth() - y - rh, x, rh, rw, color);
+            break;
+        case Rotation::k180:
+            FillRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), HwWidth() - x - rw, HwHeight() - y - rh, rw, rh,
+                     color);
+            break;
+        case Rotation::k270:
+            FillRect(display_.GetFramebuffer(), HwWidth(), HwHeight(), y, HwHeight() - x - rw, rh, rw, color);
+            break;
+    }
+}
+
+void DisplayGFX::DrawCircle(int cx, int cy, int r, uint16_t color)
+{
+    if (rotation_ == Rotation::k0)
+    {
+        DrawCircle(display_.GetFramebuffer(), HwWidth(), HwHeight(), cx, cy, r, color);
+        return;
+    }
+    int px, py;
+    MapToPhysical(cx, cy, &px, &py);
+    DrawCircle(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, r, color);
+}
+
+void DisplayGFX::FillCircle(int cx, int cy, int r, uint16_t color)
+{
+    if (rotation_ == Rotation::k0)
+    {
+        FillCircle(display_.GetFramebuffer(), HwWidth(), HwHeight(), cx, cy, r, color);
+        return;
+    }
+    int px, py;
+    MapToPhysical(cx, cy, &px, &py);
+    FillCircle(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, r, color);
+}
+
+void DisplayGFX::DrawChar(int x, int y, char ch, uint16_t color, uint16_t bg)
+{
+    if (rotation_ == Rotation::k0)
+    {
+        DrawChar(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, ch, color, bg);
+        return;
+    }
+    int px, py;
+    MapToPhysical(x, y, &px, &py);
+    DrawChar(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, ch, color, bg);
+}
+
+void DisplayGFX::DrawString(int x, int y, const char* str, uint16_t color, uint16_t bg)
+{
+    if (!str) return;
+    int cx = x;
+    while (*str)
+    {
+        DrawChar(cx, y, *str, color, bg);
+        cx += kFontWidth;
+        if (cx >= GetWidth()) break;
+        str++;
+    }
+}
+
+// ====== 测试程序（全部使用实例方法，自动跟随旋转） ======
+
+void DisplayGFX::TestBallCollision()
+{
+    int w = GetWidth(), h = GetHeight();
     const int N = 10;
     struct
     {
@@ -312,7 +501,6 @@ void DisplayGFX::TestBallCollision(Display& display)
     float gx = w * 0.5f, gy = h * 0.5f;
     for (int f = 0; f < 600; ++f)
     {
-        // 引力 + 阻尼
         for (int i = 0; i < N; ++i)
         {
             float dx2 = gx - b[i].x, dy2 = gy - b[i].y;
@@ -324,28 +512,11 @@ void DisplayGFX::TestBallCollision(Display& display)
             b[i].vy *= 0.997f;
             b[i].x += b[i].vx;
             b[i].y += b[i].vy;
-            if (b[i].x - b[i].r < 0)
-            {
-                b[i].x = (float)b[i].r;
-                b[i].vx = -b[i].vx * 0.7f;
-            }
-            if (b[i].x + b[i].r > w)
-            {
-                b[i].x = w - b[i].r;
-                b[i].vx = -b[i].vx * 0.7f;
-            }
-            if (b[i].y - b[i].r < 0)
-            {
-                b[i].y = (float)b[i].r;
-                b[i].vy = -b[i].vy * 0.7f;
-            }
-            if (b[i].y + b[i].r > h)
-            {
-                b[i].y = h - b[i].r;
-                b[i].vy = -b[i].vy * 0.7f;
-            }
+            if (b[i].x - b[i].r < 0) { b[i].x = (float)b[i].r; b[i].vx = -b[i].vx * 0.7f; }
+            if (b[i].x + b[i].r > w) { b[i].x = w - b[i].r; b[i].vx = -b[i].vx * 0.7f; }
+            if (b[i].y - b[i].r < 0) { b[i].y = (float)b[i].r; b[i].vy = -b[i].vy * 0.7f; }
+            if (b[i].y + b[i].r > h) { b[i].y = h - b[i].r; b[i].vy = -b[i].vy * 0.7f; }
         }
-        // 碰撞
         for (int i = 0; i < N; ++i)
             for (int j = i + 1; j < N; ++j)
             {
@@ -358,44 +529,35 @@ void DisplayGFX::TestBallCollision(Display& display)
                     float dvn = (b[i].vx - b[j].vx) * nx + (b[i].vy - b[j].vy) * ny;
                     if (dvn < 0)
                     {
-                        b[i].vx -= dvn * nx;
-                        b[i].vy -= dvn * ny;
-                        b[j].vx += dvn * nx;
-                        b[j].vy += dvn * ny;
+                        b[i].vx -= dvn * nx; b[i].vy -= dvn * ny;
+                        b[j].vx += dvn * nx; b[j].vy += dvn * ny;
                     }
                     float overlap = md - dist;
-                    b[i].x += nx * overlap * 0.5f;
-                    b[i].y += ny * overlap * 0.5f;
-                    b[j].x -= nx * overlap * 0.5f;
-                    b[j].y -= ny * overlap * 0.5f;
+                    b[i].x += nx * overlap * 0.5f; b[i].y += ny * overlap * 0.5f;
+                    b[j].x -= nx * overlap * 0.5f; b[j].y -= ny * overlap * 0.5f;
                 }
             }
-        display.Fill(GFX_BLACK);
-        uint16_t* fb = display.GetFramebuffer();
-        // 引力井波纹
+        display_.Fill(GFX_BLACK);
         for (int ring = 0; ring < 3; ++ring)
         {
             int rr2 = 30 + ring * 15 + (f % 15);
-            FillCircle(fb, w, h, (int)gx, (int)gy, rr2, GFX_DARK);
+            FillCircle((int)gx, (int)gy, rr2, GFX_DARK);
         }
-        // 球体
         for (int i = 0; i < N; ++i)
         {
             int cx = (int)b[i].x, cy = (int)b[i].y, rr = b[i].r;
-            FillCircle(fb, w, h, cx, cy, rr, b[i].c);
-            // 高光
+            FillCircle(cx, cy, rr, b[i].c);
             int hs = rr / 3;
-            if (hs > 1) FillRect(fb, w, h, cx - rr / 3, cy - rr / 3, hs, hs, GFX_WHITE);
+            if (hs > 1) FillRect(cx - rr / 3, cy - rr / 3, hs, hs, GFX_WHITE);
         }
-        display.Flush();
+        display_.Flush();
         vTaskDelay(pdMS_TO_TICKS(16));
     }
 }
 
-// 星空视差（十字星芒）
-void DisplayGFX::TestStarfield(Display& display)
+void DisplayGFX::TestStarfield()
 {
-    int w = display.GetWidth(), h = display.GetHeight();
+    int w = GetWidth(), h = GetHeight();
     const int N = 100;
     struct
     {
@@ -412,8 +574,7 @@ void DisplayGFX::TestStarfield(Display& display)
     }
     for (int f = 0; f < 400; ++f)
     {
-        display.Fill(GFX_BLACK);
-        uint16_t* fb = display.GetFramebuffer();
+        display_.Fill(GFX_BLACK);
         for (int i = 0; i < N; ++i)
         {
             stars[i].x = (stars[i].x + stars[i].speed) % w;
@@ -421,42 +582,37 @@ void DisplayGFX::TestStarfield(Display& display)
             if (sx < 0 || sx >= w || sy < 0 || sy >= h) continue;
             uint16_t c = stars[i].c;
             int sp = stars[i].speed;
-            // 中心点
-            fb[sy * w + sx] = c;
-            // 十字
+            DrawPixel(sx, sy, c);
             if (sp >= 2)
             {
-                if (sx > 0) fb[sy * w + sx - 1] = c;
-                if (sx < w - 1) fb[sy * w + sx + 1] = c;
-                if (sy > 0) fb[(sy - 1) * w + sx] = c;
-                if (sy < h - 1) fb[(sy + 1) * w + sx] = c;
+                if (sx > 0) DrawPixel(sx - 1, sy, c);
+                if (sx < w - 1) DrawPixel(sx + 1, sy, c);
+                if (sy > 0) DrawPixel(sx, sy - 1, c);
+                if (sy < h - 1) DrawPixel(sx, sy + 1, c);
             }
-            // 对角线（星芒）
             if (sp >= 3)
             {
-                if (sx > 0 && sy > 0) fb[(sy - 1) * w + sx - 1] = c;
-                if (sx < w - 1 && sy > 0) fb[(sy - 1) * w + sx + 1] = c;
-                if (sx > 0 && sy < h - 1) fb[(sy + 1) * w + sx - 1] = c;
-                if (sx < w - 1 && sy < h - 1) fb[(sy + 1) * w + sx + 1] = c;
+                if (sx > 0 && sy > 0) DrawPixel(sx - 1, sy - 1, c);
+                if (sx < w - 1 && sy > 0) DrawPixel(sx + 1, sy - 1, c);
+                if (sx > 0 && sy < h - 1) DrawPixel(sx - 1, sy + 1, c);
+                if (sx < w - 1 && sy < h - 1) DrawPixel(sx + 1, sy + 1, c);
             }
-            // 外层暗色光晕
             if (sp >= 4)
             {
-                if (sx > 1) fb[sy * w + sx - 2] = GFX_DARK;
-                if (sx < w - 2) fb[sy * w + sx + 2] = GFX_DARK;
-                if (sy > 1) fb[(sy - 2) * w + sx] = GFX_DARK;
-                if (sy < h - 2) fb[(sy + 2) * w + sx] = GFX_DARK;
+                if (sx > 1) DrawPixel(sx - 2, sy, GFX_DARK);
+                if (sx < w - 2) DrawPixel(sx + 2, sy, GFX_DARK);
+                if (sy > 1) DrawPixel(sx, sy - 2, GFX_DARK);
+                if (sy < h - 2) DrawPixel(sx, sy + 2, GFX_DARK);
             }
         }
-        display.Flush();
+        display_.Flush();
         vTaskDelay(pdMS_TO_TICKS(16));
     }
 }
 
-// 双立方体交织旋转 + 色彩循环
-void DisplayGFX::TestCubeRotation(Display& display)
+void DisplayGFX::TestCubeRotation()
 {
-    int w = display.GetWidth(), h = display.GetHeight();
+    int w = GetWidth(), h = GetHeight();
     const float verts[8][3] = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
                                 {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1}};
     const int edges[12][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6},
@@ -464,10 +620,8 @@ void DisplayGFX::TestCubeRotation(Display& display)
     uint16_t palette[] = {GFX_RED, GFX_ORANGE, GFX_YELLOW, GFX_GREEN, GFX_CYAN, GFX_BLUE, GFX_MAGENTA, GFX_WHITE};
     for (int f = 0; f < 600; ++f)
     {
-        display.Fill(GFX_BLACK);
-        uint16_t* fb = display.GetFramebuffer();
+        display_.Fill(GFX_BLACK);
         float pulse = 1.0f + 0.12f * sinf(f * 0.04f);
-        // 外立方体 — Y 轴为主旋转
         float a1 = f * 0.025f, ca1 = cosf(a1), sa1 = sinf(a1);
         float a1b = f * 0.018f, ca1b = cosf(a1b), sa1b = sinf(a1b);
         int ox[8], oy[8];
@@ -480,7 +634,6 @@ void DisplayGFX::TestCubeRotation(Display& display)
             ox[i] = (int)(rx * 150 * pulse + w / 2);
             oy[i] = (int)(-ry * 150 * pulse + h / 2) + (int)(rz * 20);
         }
-        // 内立方体 — 反向 X 轴旋转
         float a2 = -f * 0.04f, ca2 = cosf(a2), sa2 = sinf(a2);
         float a2b = -f * 0.03f, ca2b = cosf(a2b), sa2b = sinf(a2b);
         int ix[8], iy[8];
@@ -493,41 +646,35 @@ void DisplayGFX::TestCubeRotation(Display& display)
             ix[i] = (int)(rx * 80 * pulse + w / 2);
             iy[i] = (int)(-ry * 80 * pulse + h / 2) + (int)(rz * 12);
         }
-        // 外立方体棱边（色彩滚动）
         int cs = (f / 8) % 8;
         for (int e = 0; e < 12; ++e)
         {
             int ci = (cs + (edges[e][0] + edges[e][1]) % 4) % 8;
-            DrawLine(fb, w, h, ox[edges[e][0]], oy[edges[e][0]], ox[edges[e][1]], oy[edges[e][1]], palette[ci]);
+            DrawLine(ox[edges[e][0]], oy[edges[e][0]], ox[edges[e][1]], oy[edges[e][1]], palette[ci]);
         }
-        // 内立方体棱边
         for (int e = 0; e < 12; ++e)
         {
             int ci = (cs + 4 + e % 3) % 8;
-            DrawLine(fb, w, h, ix[edges[e][0]], iy[edges[e][0]], ix[edges[e][1]], iy[edges[e][1]], palette[ci]);
+            DrawLine(ix[edges[e][0]], iy[edges[e][0]], ix[edges[e][1]], iy[edges[e][1]], palette[ci]);
         }
-        // 内外顶点连线（半透明效果用暗色）
-        for (int i = 0; i < 8; ++i) DrawLine(fb, w, h, ox[i], oy[i], ix[i], iy[i], GFX_DARK);
-        // 外顶点光晕
+        for (int i = 0; i < 8; ++i) DrawLine(ox[i], oy[i], ix[i], iy[i], GFX_DARK);
         for (int i = 0; i < 8; ++i)
         {
-            FillRect(fb, w, h, ox[i] - 4, oy[i] - 4, 9, 9, GFX_WHITE);
-            FillRect(fb, w, h, ox[i] - 2, oy[i] - 2, 5, 5, palette[(cs + i) % 8]);
+            FillRect(ox[i] - 4, oy[i] - 4, 9, 9, GFX_WHITE);
+            FillRect(ox[i] - 2, oy[i] - 2, 5, 5, palette[(cs + i) % 8]);
         }
-        // 内顶点
         for (int i = 0; i < 8; ++i)
         {
-            FillRect(fb, w, h, ix[i] - 2, iy[i] - 2, 5, 5, GFX_YELLOW);
+            FillRect(ix[i] - 2, iy[i] - 2, 5, 5, GFX_YELLOW);
         }
-        display.Flush();
+        display_.Flush();
         vTaskDelay(pdMS_TO_TICKS(16));
     }
 }
 
-// 多彩方块碰撞混战
-void DisplayGFX::TestColorSquares(Display& display)
+void DisplayGFX::TestColorSquares()
 {
-    int w = display.GetWidth(), h = display.GetHeight();
+    int w = GetWidth(), h = GetHeight();
     const int NS = 5;
     struct
     {
@@ -544,82 +691,43 @@ void DisplayGFX::TestColorSquares(Display& display)
         {
             sq[i].x += sq[i].vx;
             sq[i].y += sq[i].vy;
-            if (sq[i].x <= 0)
-            {
-                sq[i].x = 0;
-                sq[i].vx = -sq[i].vx;
-                sq[i].c = pal[(f / 20 + i) % 8];
-            }
-            if (sq[i].x + sq[i].s >= w)
-            {
-                sq[i].x = w - sq[i].s;
-                sq[i].vx = -sq[i].vx;
-                sq[i].c = pal[(f / 20 + i + 2) % 8];
-            }
-            if (sq[i].y <= 0)
-            {
-                sq[i].y = 0;
-                sq[i].vy = -sq[i].vy;
-                sq[i].c = pal[(f / 20 + i + 4) % 8];
-            }
-            if (sq[i].y + sq[i].s >= h)
-            {
-                sq[i].y = h - sq[i].s;
-                sq[i].vy = -sq[i].vy;
-                sq[i].c = pal[(f / 20 + i + 6) % 8];
-            }
+            if (sq[i].x <= 0) { sq[i].x = 0; sq[i].vx = -sq[i].vx; sq[i].c = pal[(f / 20 + i) % 8]; }
+            if (sq[i].x + sq[i].s >= w) { sq[i].x = w - sq[i].s; sq[i].vx = -sq[i].vx; sq[i].c = pal[(f / 20 + i + 2) % 8]; }
+            if (sq[i].y <= 0) { sq[i].y = 0; sq[i].vy = -sq[i].vy; sq[i].c = pal[(f / 20 + i + 4) % 8]; }
+            if (sq[i].y + sq[i].s >= h) { sq[i].y = h - sq[i].s; sq[i].vy = -sq[i].vy; sq[i].c = pal[(f / 20 + i + 6) % 8]; }
         }
-        // AABB 碰撞交换速度 + 颜色
         for (int i = 0; i < NS; ++i)
             for (int j = i + 1; j < NS; ++j)
             {
                 if (sq[i].x < sq[j].x + sq[j].s && sq[i].x + sq[i].s > sq[j].x && sq[i].y < sq[j].y + sq[j].s &&
                     sq[i].y + sq[i].s > sq[j].y)
                 {
-                    int tvx = sq[i].vx;
-                    sq[i].vx = sq[j].vx;
-                    sq[j].vx = tvx;
-                    int tvy = sq[i].vy;
-                    sq[i].vy = sq[j].vy;
-                    sq[j].vy = tvy;
-                    uint16_t tc = sq[i].c;
-                    sq[i].c = sq[j].c;
-                    sq[j].c = tc;
-                    // 弹开避免重叠
+                    int tvx = sq[i].vx; sq[i].vx = sq[j].vx; sq[j].vx = tvx;
+                    int tvy = sq[i].vy; sq[i].vy = sq[j].vy; sq[j].vy = tvy;
+                    uint16_t tc = sq[i].c; sq[i].c = sq[j].c; sq[j].c = tc;
                     int ox2 = (sq[i].x + sq[i].s / 2) - (sq[j].x + sq[j].s / 2);
                     int oy2 = (sq[i].y + sq[i].s / 2) - (sq[j].y + sq[j].s / 2);
-                    if (ox2 < 0)
-                        ox2 = -1;
-                    else
-                        ox2 = 1;
-                    if (oy2 < 0)
-                        oy2 = -1;
-                    else
-                        oy2 = 1;
-                    sq[i].x += ox2 * 4;
-                    sq[j].x -= ox2 * 4;
-                    sq[i].y += oy2 * 4;
-                    sq[j].y -= oy2 * 4;
+                    ox2 = (ox2 < 0) ? -1 : 1;
+                    oy2 = (oy2 < 0) ? -1 : 1;
+                    sq[i].x += ox2 * 4; sq[j].x -= ox2 * 4;
+                    sq[i].y += oy2 * 4; sq[j].y -= oy2 * 4;
                 }
             }
-        display.Fill(GFX_BLACK);
-        uint16_t* fb = display.GetFramebuffer();
+        display_.Fill(GFX_BLACK);
         for (int i = 0; i < NS; ++i)
         {
-            FillRect(fb, w, h, sq[i].x, sq[i].y, sq[i].s, sq[i].s, sq[i].c);
-            // 白色边框
-            DrawRect(fb, w, h, sq[i].x, sq[i].y, sq[i].s, sq[i].s, GFX_WHITE);
+            FillRect(sq[i].x, sq[i].y, sq[i].s, sq[i].s, sq[i].c);
+            DrawRect(sq[i].x, sq[i].y, sq[i].s, sq[i].s, GFX_WHITE);
         }
-        display.Flush();
+        display_.Flush();
         vTaskDelay(pdMS_TO_TICKS(16));
     }
 }
 
-// 字体展示测试
-void DisplayGFX::TestFont(Display& display)
+void DisplayGFX::TestFont()
 {
-    int w = display.GetWidth(), h = display.GetHeight();
-    // 彩色渐变背景
+    int w = GetWidth(), h = GetHeight();
+    // 渐变背景（逐行填充）
     for (int y = 0; y < h; ++y)
     {
         float t = (float)y / h;
@@ -627,52 +735,44 @@ void DisplayGFX::TestFont(Display& display)
         uint8_t g = (uint8_t)(63 * (1.0f - t));
         uint8_t b = (uint8_t)(31 * (0.5f + 0.5f * sinf(t * 3.14159f)));
         uint16_t bg = (uint16_t)((r & 0x1F) << 11) | ((g & 0x3F) << 5) | (b & 0x1F);
-        uint16_t* fb = display.GetFramebuffer();
-        DrawHLine(fb, w, h, 0, y, w, bg);
+        DrawHLine(0, y, w, bg);
     }
 
-    uint16_t* fb = display.GetFramebuffer();
+    DrawString(10, 10, "DisplayGFX Font Test", GFX_WHITE, GFX_BLACK);
+    DrawString(10, 22, "6x8 ASCII 0x20-0x7F", GFX_GRAY, GFX_BLACK);
 
-    // 标题
-    DrawString(fb, w, h, 10, 10, "DisplayGFX Font Test", GFX_WHITE, GFX_BLACK);
-    DrawString(fb, w, h, 10, 22, "6x8 ASCII 0x20-0x7F", GFX_GRAY, GFX_BLACK);
-
-    // 打印全部 96 个可打印 ASCII 字符 (16 列 × 6 行)
+    // 全部可打印 ASCII 字符 (16 列 × 6 行)
     for (int row = 0; row < 6; ++row)
     {
         for (int col = 0; col < 16; ++col)
         {
             char ch = (char)(0x20 + row * 16 + col);
-            int cx = 10 + col * (kFontWidth + 2);   // 额外 2px 间距
+            int cx = 10 + col * (kFontWidth + 2);
             int cy = 40 + row * (kFontHeight + 2);
-            // 交替前景色
             uint16_t fg = (col % 2 == 0) ? GFX_YELLOW : GFX_CYAN;
             char buf[2] = {ch, '\0'};
-            DrawString(fb, w, h, cx, cy, buf, fg, GFX_BLACK);
+            DrawString(cx, cy, buf, fg, GFX_BLACK);
         }
     }
 
-    // 底部绘制一条装饰线
     int by = 40 + 6 * (kFontHeight + 2) + 5;
-    DrawHLine(fb, w, h, 10, by, w - 20, GFX_WHITE);
+    DrawHLine(10, by, w - 20, GFX_WHITE);
 
-    // 多色测试字符串
-    DrawString(fb, w, h, 10, by + 10, "Hello from ESP32-P4!", GFX_GREEN, GFX_BLACK);
-    DrawString(fb, w, h, 10, by + 22, "0123456789 !@#$%^&*()", GFX_YELLOW, GFX_BLACK);
-    DrawString(fb, w, h, 10, by + 34, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", GFX_RED, GFX_BLACK);
-    DrawString(fb, w, h, 10, by + 46, "abcdefghijklmnopqrstuvwxyz", GFX_CYAN, GFX_BLACK);
-    DrawString(fb, w, h, 10, by + 58, "The quick brown fox jumps", GFX_ORANGE, GFX_BLACK);
+    DrawString(10, by + 10, "Hello from ESP32-P4!", GFX_GREEN, GFX_BLACK);
+    DrawString(10, by + 22, "0123456789 !@#$%^&*()", GFX_YELLOW, GFX_BLACK);
+    DrawString(10, by + 34, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", GFX_RED, GFX_BLACK);
+    DrawString(10, by + 46, "abcdefghijklmnopqrstuvwxyz", GFX_CYAN, GFX_BLACK);
+    DrawString(10, by + 58, "The quick brown fox jumps", GFX_ORANGE, GFX_BLACK);
 
-    display.Flush();
+    display_.Flush();
     vTaskDelay(pdMS_TO_TICKS(3000));
 }
 
-// 运行全部测试
-void DisplayGFX::TestAll(Display& display)
+void DisplayGFX::TestAll()
 {
-    TestFont(display);
-    TestBallCollision(display);
-    TestStarfield(display);
-    TestCubeRotation(display);
-    TestColorSquares(display);
+    TestFont();
+    TestBallCollision();
+    TestStarfield();
+    TestCubeRotation();
+    TestColorSquares();
 }

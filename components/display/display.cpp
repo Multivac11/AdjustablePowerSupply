@@ -63,6 +63,11 @@ static const st7701_lcd_init_cmd_t s_init_cmds[] = {
     {0x29, (uint8_t[]){0x00}, 0, 120},
 };
 
+bool Display::Init()
+{
+    return Init(Config());
+}
+
 bool Display::Init(const Config& cfg)
 {
     width_ = cfg.h_res;
