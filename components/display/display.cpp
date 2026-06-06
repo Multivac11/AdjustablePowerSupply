@@ -213,3 +213,10 @@ void Display::Fill(uint16_t color)
         buf[i] = color;
     }
 }
+
+void Display::DrawPixel(uint16_t x, uint16_t y, uint16_t color)
+{
+    if (!fb_back_) return;
+    if (x >= (uint16_t)width_ || y >= (uint16_t)height_) return;
+    ((uint16_t*)fb_back_)[y * width_ + x] = color;
+}
