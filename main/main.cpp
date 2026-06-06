@@ -83,56 +83,73 @@ static void DisplayTest()
     auto& d = Display::GetInstance();
     int w = d.GetWidth(), h = d.GetHeight();
 
-    // ====== 1. 六球碰撞物理 ======
+    // ====== 1. 十球物理碰撞 + 中心引力井 ======
     {
-        const int N = 6;
+        const int N = 10;
         struct
         {
             float x, y, vx, vy;
             int r;
             uint16_t c;
-        } b[N] = {
-            {100, 200, 3, 2, 25, C_RED},        {300, 150, -2.5f, 3, 22, C_GREEN}, {200, 500, 2.5f, -2, 28, C_BLUE},
-            {350, 400, -3, 2.5f, 30, C_YELLOW}, {150, 300, 2, -3, 20, C_CYAN},     {250, 600, -2, -2.5f, 24, C_MAGENTA},
-        };
-        for (int f = 0; f < 500; ++f)
+        } b[N];
+        uint16_t colors[] = {C_RED, C_GREEN, C_BLUE, C_YELLOW, C_CYAN, C_MAGENTA, C_ORANGE, C_WHITE, 0x07E0, 0xF80F};
+        int radii[] = {30, 22, 34, 18, 26, 20, 32, 16, 24, 28};
+        for (int i = 0; i < N; ++i)
         {
+            b[i].x = 100.0f + (float)(rand() % (w - 200));
+            b[i].y = 100.0f + (float)(rand() % (h - 200));
+            b[i].vx = (float)(rand() % 8 - 4);
+            b[i].vy = (float)(rand() % 8 - 4);
+            b[i].r = radii[i];
+            b[i].c = colors[i];
+        }
+        float gx = w * 0.5f, gy = h * 0.5f;
+        for (int f = 0; f < 600; ++f)
+        {
+            // 引力 + 阻尼
             for (int i = 0; i < N; ++i)
             {
+                float dx2 = gx - b[i].x, dy2 = gy - b[i].y;
+                float dist2 = dx2 * dx2 + dy2 * dy2 + 6000.0f;
+                float force = 100.0f / dist2;
+                b[i].vx += dx2 * force;
+                b[i].vy += dy2 * force;
+                b[i].vx *= 0.997f;
+                b[i].vy *= 0.997f;
                 b[i].x += b[i].vx;
                 b[i].y += b[i].vy;
                 if (b[i].x - b[i].r < 0)
                 {
                     b[i].x = (float)b[i].r;
-                    b[i].vx = -b[i].vx;
+                    b[i].vx = -b[i].vx * 0.7f;
                 }
                 if (b[i].x + b[i].r > w)
                 {
                     b[i].x = w - b[i].r;
-                    b[i].vx = -b[i].vx;
+                    b[i].vx = -b[i].vx * 0.7f;
                 }
                 if (b[i].y - b[i].r < 0)
                 {
                     b[i].y = (float)b[i].r;
-                    b[i].vy = -b[i].vy;
+                    b[i].vy = -b[i].vy * 0.7f;
                 }
                 if (b[i].y + b[i].r > h)
                 {
                     b[i].y = h - b[i].r;
-                    b[i].vy = -b[i].vy;
+                    b[i].vy = -b[i].vy * 0.7f;
                 }
             }
-            // 简单碰撞
+            // 碰撞
             for (int i = 0; i < N; ++i)
                 for (int j = i + 1; j < N; ++j)
                 {
-                    float dx = b[i].x - b[j].x, dy = b[i].y - b[j].y;
-                    float dist = sqrtf(dx * dx + dy * dy);
-                    if (dist < b[i].r + b[j].r && dist > 0)
+                    float dx2 = b[i].x - b[j].x, dy2 = b[i].y - b[j].y;
+                    float dist = sqrtf(dx2 * dx2 + dy2 * dy2);
+                    float md = (float)(b[i].r + b[j].r);
+                    if (dist < md && dist > 0.001f)
                     {
-                        float nx = dx / dist, ny = dy / dist;
-                        float dvx = b[i].vx - b[j].vx, dvy = b[i].vy - b[j].vy;
-                        float dvn = dvx * nx + dvy * ny;
+                        float nx = dx2 / dist, ny = dy2 / dist;
+                        float dvn = (b[i].vx - b[j].vx) * nx + (b[i].vy - b[j].vy) * ny;
                         if (dvn < 0)
                         {
                             b[i].vx -= dvn * nx;
@@ -140,15 +157,37 @@ static void DisplayTest()
                             b[j].vx += dvn * nx;
                             b[j].vy += dvn * ny;
                         }
-                        float overlap = b[i].r + b[j].r - dist;
-                        b[i].x += nx * overlap / 2;
-                        b[i].y += ny * overlap / 2;
-                        b[j].x -= nx * overlap / 2;
-                        b[j].y -= ny * overlap / 2;
+                        float overlap = md - dist;
+                        b[i].x += nx * overlap * 0.5f;
+                        b[i].y += ny * overlap * 0.5f;
+                        b[j].x -= nx * overlap * 0.5f;
+                        b[j].y -= ny * overlap * 0.5f;
                     }
                 }
             d.Fill(C_BLACK);
             uint16_t* fb = d.GetFramebuffer();
+            // 引力井波纹
+            for (int ring = 0; ring < 3; ++ring)
+            {
+                int rr2 = 30 + ring * 15 + (f % 15);
+                int cx2 = 0, cy2 = rr2, e2 = 3 - 2 * rr2;
+                while (cy2 >= cx2)
+                {
+                    uint16_t rc = (ring == 0) ? C_DARK : C_DARK;
+                    DrawHLine(fb, w, h, (int)gx - cx2, (int)gy + cy2, 2 * cx2 + 1, rc);
+                    DrawHLine(fb, w, h, (int)gx - cx2, (int)gy - cy2, 2 * cx2 + 1, rc);
+                    DrawHLine(fb, w, h, (int)gx - cy2, (int)gy + cx2, 2 * cy2 + 1, rc);
+                    DrawHLine(fb, w, h, (int)gx - cy2, (int)gy - cx2, 2 * cy2 + 1, rc);
+                    if (e2 < 0) e2 += 4 * cx2 + 6;
+                    else
+                    {
+                        e2 += 4 * (cx2 - cy2) + 10;
+                        cy2--;
+                    }
+                    cx2++;
+                }
+            }
+            // 球体
             for (int i = 0; i < N; ++i)
             {
                 int cx = (int)b[i].x, cy = (int)b[i].y, rr = b[i].r;
@@ -168,13 +207,16 @@ static void DisplayTest()
                     }
                     x++;
                 }
+                // 高光
+                int hs = rr / 3;
+                if (hs > 1) FillRect(fb, w, h, cx - rr / 3, cy - rr / 3, hs, hs, C_WHITE);
             }
             d.Flush();
             vTaskDelay(pdMS_TO_TICKS(16));
         }
     }
 
-    // ====== 2. 星空视差 ======
+    // ====== 2. 星空视差（十字星芒） ======
     {
         const int N = 100;
         struct
@@ -197,68 +239,206 @@ static void DisplayTest()
             for (int i = 0; i < N; ++i)
             {
                 stars[i].x = (stars[i].x + stars[i].speed) % w;
-                if (stars[i].x >= 0 && stars[i].x < w && stars[i].y >= 0 && stars[i].y < h)
-                    fb[stars[i].y * w + stars[i].x] = stars[i].c;
+                int sx = stars[i].x, sy = stars[i].y;
+                if (sx < 0 || sx >= w || sy < 0 || sy >= h) continue;
+                uint16_t c = stars[i].c;
+                int sp = stars[i].speed;
+                // 中心点
+                fb[sy * w + sx] = c;
+                // 十字
+                if (sp >= 2)
+                {
+                    if (sx > 0) fb[sy * w + sx - 1] = c;
+                    if (sx < w - 1) fb[sy * w + sx + 1] = c;
+                    if (sy > 0) fb[(sy - 1) * w + sx] = c;
+                    if (sy < h - 1) fb[(sy + 1) * w + sx] = c;
+                }
+                // 对角线（星芒）
+                if (sp >= 3)
+                {
+                    if (sx > 0 && sy > 0) fb[(sy - 1) * w + sx - 1] = c;
+                    if (sx < w - 1 && sy > 0) fb[(sy - 1) * w + sx + 1] = c;
+                    if (sx > 0 && sy < h - 1) fb[(sy + 1) * w + sx - 1] = c;
+                    if (sx < w - 1 && sy < h - 1) fb[(sy + 1) * w + sx + 1] = c;
+                }
+                // 外层暗色光晕
+                if (sp >= 4)
+                {
+                    if (sx > 1) fb[sy * w + sx - 2] = C_DARK;
+                    if (sx < w - 2) fb[sy * w + sx + 2] = C_DARK;
+                    if (sy > 1) fb[(sy - 2) * w + sx] = C_DARK;
+                    if (sy < h - 2) fb[(sy + 2) * w + sx] = C_DARK;
+                }
             }
             d.Flush();
             vTaskDelay(pdMS_TO_TICKS(16));
         }
     }
 
-    // ====== 4. 旋转 3D 立方体 ======
+    // ====== 4. 双立方体交织旋转 + 色彩循环 ======
     {
         const float verts[8][3] = {{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
                                    {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1}};
         const int edges[12][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6},
                                   {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}};
-        for (int f = 0; f < 500; ++f)
+        uint16_t palette[] = {C_RED, C_ORANGE, C_YELLOW, C_GREEN, C_CYAN, C_BLUE, C_MAGENTA, C_WHITE};
+        for (int f = 0; f < 600; ++f)
         {
             d.Fill(C_BLACK);
             uint16_t* fb = d.GetFramebuffer();
-            float a = f * 0.03f, ca = cosf(a), sa = sinf(a);
-            int sx[8], sy[8];
+            float pulse = 1.0f + 0.12f * sinf(f * 0.04f);
+            // 外立方体 — Y 轴为主旋转
+            float a1 = f * 0.025f, ca1 = cosf(a1), sa1 = sinf(a1);
+            float a1b = f * 0.018f, ca1b = cosf(a1b), sa1b = sinf(a1b);
+            int ox[8], oy[8];
             for (int i = 0; i < 8; ++i)
             {
-                float rx = verts[i][0] * ca - verts[i][2] * sa;
-                float rz = verts[i][0] * sa + verts[i][2] * ca;
-                float ca2 = cosf(a * 0.7f), sa2 = sinf(a * 0.7f);
-                float ry = verts[i][1] * ca2 - rz * sa2;
-                rz = verts[i][1] * sa2 + rz * ca2;
-                sx[i] = (int)(rx * 150 + w / 2);
-                sy[i] = (int)(-ry * 150 + h / 2) + (int)(rz * 30);
+                float rx = verts[i][0] * ca1 - verts[i][2] * sa1;
+                float rz = verts[i][0] * sa1 + verts[i][2] * ca1;
+                float ry = verts[i][1] * ca1b - rz * sa1b;
+                rz = verts[i][1] * sa1b + rz * ca1b;
+                ox[i] = (int)(rx * 150 * pulse + w / 2);
+                oy[i] = (int)(-ry * 150 * pulse + h / 2) + (int)(rz * 20);
             }
-            for (auto& e : edges)
-                DrawLine(fb, w, h, sx[e[0]], sy[e[0]], sx[e[1]], sy[e[1]], ((e[0] + e[1]) % 2) ? C_CYAN : C_MAGENTA);
-            for (int i = 0; i < 8; ++i) FillRect(fb, w, h, sx[i] - 3, sy[i] - 3, 6, 6, C_YELLOW);
+            // 内立方体 — 反向 X 轴旋转
+            float a2 = -f * 0.04f, ca2 = cosf(a2), sa2 = sinf(a2);
+            float a2b = -f * 0.03f, ca2b = cosf(a2b), sa2b = sinf(a2b);
+            int ix[8], iy[8];
+            for (int i = 0; i < 8; ++i)
+            {
+                float rx = verts[i][0] * ca2 - verts[i][2] * sa2;
+                float rz = verts[i][0] * sa2 + verts[i][2] * ca2;
+                float ry = verts[i][1] * ca2b - rz * sa2b;
+                rz = verts[i][1] * sa2b + rz * ca2b;
+                ix[i] = (int)(rx * 80 * pulse + w / 2);
+                iy[i] = (int)(-ry * 80 * pulse + h / 2) + (int)(rz * 12);
+            }
+            // 外立方体棱边（色彩滚动）
+            int cs = (f / 8) % 8;
+            for (int e = 0; e < 12; ++e)
+            {
+                int ci = (cs + (edges[e][0] + edges[e][1]) % 4) % 8;
+                DrawLine(fb, w, h, ox[edges[e][0]], oy[edges[e][0]], ox[edges[e][1]], oy[edges[e][1]], palette[ci]);
+            }
+            // 内立方体棱边
+            for (int e = 0; e < 12; ++e)
+            {
+                int ci = (cs + 4 + e % 3) % 8;
+                DrawLine(fb, w, h, ix[edges[e][0]], iy[edges[e][0]], ix[edges[e][1]], iy[edges[e][1]], palette[ci]);
+            }
+            // 内外顶点连线（半透明效果用暗色）
+            for (int i = 0; i < 8; ++i)
+                DrawLine(fb, w, h, ox[i], oy[i], ix[i], iy[i], C_DARK);
+            // 外顶点光晕
+            for (int i = 0; i < 8; ++i)
+            {
+                FillRect(fb, w, h, ox[i] - 4, oy[i] - 4, 9, 9, C_WHITE);
+                FillRect(fb, w, h, ox[i] - 2, oy[i] - 2, 5, 5, palette[(cs + i) % 8]);
+            }
+            // 内顶点
+            for (int i = 0; i < 8; ++i)
+            {
+                FillRect(fb, w, h, ix[i] - 2, iy[i] - 2, 5, 5, C_YELLOW);
+            }
             d.Flush();
             vTaskDelay(pdMS_TO_TICKS(16));
         }
     }
 
-    // ====== 5. 炫彩弹跳方块收尾 ======
+    // ====== 5. 多彩方块碰撞混战 ======
     {
-        int bx = w / 2 - 40, by = h / 2 - 40, bvx = 4, bvy = 3, bs = 80;
-        uint16_t cc = C_RED;
-        for (int f = 0; f < 300; ++f)
+        const int NS = 5;
+        struct
         {
-            bx += bvx;
-            by += bvy;
-            if (bx <= 0 || bx + bs >= w)
+            int x, y, vx, vy, s;
+            uint16_t c;
+        } sq[NS] = {
+            {w / 2 - 40, h / 2 - 40, 5, 3, 80, C_RED},
+            {100, 200, -4, 6, 50, C_CYAN},
+            {300, 500, 6, -5, 60, C_GREEN},
+            {200, 100, -5, -6, 45, C_YELLOW},
+            {380, 300, 4, -7, 70, C_MAGENTA},
+        };
+        uint16_t pal[] = {C_RED, C_CYAN, C_GREEN, C_YELLOW, C_MAGENTA, C_ORANGE, C_BLUE, C_WHITE};
+        for (int f = 0; f < 450; ++f)
+        {
+            for (int i = 0; i < NS; ++i)
             {
-                bvx = -bvx;
-                cc = (cc == C_RED) ? C_CYAN : (cc == C_CYAN ? C_YELLOW : C_RED);
+                sq[i].x += sq[i].vx;
+                sq[i].y += sq[i].vy;
+                if (sq[i].x <= 0)
+                {
+                    sq[i].x = 0;
+                    sq[i].vx = -sq[i].vx;
+                    sq[i].c = pal[(f / 20 + i) % 8];
+                }
+                if (sq[i].x + sq[i].s >= w)
+                {
+                    sq[i].x = w - sq[i].s;
+                    sq[i].vx = -sq[i].vx;
+                    sq[i].c = pal[(f / 20 + i + 2) % 8];
+                }
+                if (sq[i].y <= 0)
+                {
+                    sq[i].y = 0;
+                    sq[i].vy = -sq[i].vy;
+                    sq[i].c = pal[(f / 20 + i + 4) % 8];
+                }
+                if (sq[i].y + sq[i].s >= h)
+                {
+                    sq[i].y = h - sq[i].s;
+                    sq[i].vy = -sq[i].vy;
+                    sq[i].c = pal[(f / 20 + i + 6) % 8];
+                }
             }
-            if (by <= 0 || by + bs >= h)
-            {
-                bvy = -bvy;
-                cc = (cc == C_GREEN) ? C_MAGENTA : C_GREEN;
-            }
-            if (bx < 0) bx = 0;
-            if (by < 0) by = 0;
-            if (bx + bs > w) bx = w - bs;
-            if (by + bs > h) by = h - bs;
+            // AABB 碰撞交换速度 + 颜色
+            for (int i = 0; i < NS; ++i)
+                for (int j = i + 1; j < NS; ++j)
+                {
+                    if (sq[i].x < sq[j].x + sq[j].s && sq[i].x + sq[i].s > sq[j].x && sq[i].y < sq[j].y + sq[j].s
+                        && sq[i].y + sq[i].s > sq[j].y)
+                    {
+                        int tvx = sq[i].vx;
+                        sq[i].vx = sq[j].vx;
+                        sq[j].vx = tvx;
+                        int tvy = sq[i].vy;
+                        sq[i].vy = sq[j].vy;
+                        sq[j].vy = tvy;
+                        uint16_t tc = sq[i].c;
+                        sq[i].c = sq[j].c;
+                        sq[j].c = tc;
+                        // 弹开避免重叠
+                        int ox2 = (sq[i].x + sq[i].s / 2) - (sq[j].x + sq[j].s / 2);
+                        int oy2 = (sq[i].y + sq[i].s / 2) - (sq[j].y + sq[j].s / 2);
+                        if (ox2 < 0) ox2 = -1;
+                        else ox2 = 1;
+                        if (oy2 < 0) oy2 = -1;
+                        else oy2 = 1;
+                        sq[i].x += ox2 * 4;
+                        sq[j].x -= ox2 * 4;
+                        sq[i].y += oy2 * 4;
+                        sq[j].y -= oy2 * 4;
+                    }
+                }
             d.Fill(C_BLACK);
-            FillRect(d.GetFramebuffer(), w, h, bx, by, bs, bs, cc);
+            uint16_t* fb = d.GetFramebuffer();
+            for (int i = 0; i < NS; ++i)
+            {
+                FillRect(fb, w, h, sq[i].x, sq[i].y, sq[i].s, sq[i].s, sq[i].c);
+                // 白色边框
+                DrawHLine(fb, w, h, sq[i].x, sq[i].y, sq[i].s, C_WHITE);
+                DrawHLine(fb, w, h, sq[i].x, sq[i].y + sq[i].s - 1, sq[i].s, C_WHITE);
+                for (int dy = 1; dy < sq[i].s - 1; ++dy)
+                {
+                    int row = sq[i].y + dy;
+                    if (row >= 0 && row < h)
+                    {
+                        if (sq[i].x >= 0 && sq[i].x < w) fb[row * w + sq[i].x] = C_WHITE;
+                        int rx = sq[i].x + sq[i].s - 1;
+                        if (rx >= 0 && rx < w) fb[row * w + rx] = C_WHITE;
+                    }
+                }
+            }
             d.Flush();
             vTaskDelay(pdMS_TO_TICKS(16));
         }
