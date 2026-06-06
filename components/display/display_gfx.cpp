@@ -3,108 +3,73 @@
 #include <cstdlib>
 #include <cstring>
 
-static const char* TAG = "DisplayGFX";
+// ====== 字体渲染（C51 逐行格式，MSB=左） ======
+// 字库按实际像素宽度选择存储类型：
+//   w≤8  → uint8_t [95][h]，  每行 1 字节
+//   w≤16 → uint16_t[95][h]，  每行 1 个 uint16_t
+//   w≤32 → uint32_t[95][h]，  每行 1 个 uint32_t（左对齐）
 
-// ====== 6×8 ASCII 字库 (5×7 点阵，每字符 5 字节，码点 0x20–0x7F) ======
-// 每字节对应一列 (MSB = 顶部像素)，在 6×8 单元格内左对齐，右侧留 1px 间距
-static const uint8_t kFont5x7[96][5] = {
-    /* 0x20 ' ' */ {0x00, 0x00, 0x00, 0x00, 0x00},
-    /* 0x21 '!' */ {0x00, 0x00, 0x5F, 0x00, 0x00},
-    /* 0x22 '"' */ {0x00, 0x07, 0x00, 0x07, 0x00},
-    /* 0x23 '#' */ {0x14, 0x7F, 0x14, 0x7F, 0x14},
-    /* 0x24 '$' */ {0x24, 0x2A, 0x7F, 0x2A, 0x12},
-    /* 0x25 '%' */ {0x23, 0x13, 0x08, 0x64, 0x62},
-    /* 0x26 '&' */ {0x36, 0x49, 0x55, 0x22, 0x50},
-    /* 0x27 ''' */ {0x00, 0x05, 0x03, 0x00, 0x00},
-    /* 0x28 '(' */ {0x00, 0x1C, 0x22, 0x41, 0x00},
-    /* 0x29 ')' */ {0x00, 0x41, 0x22, 0x1C, 0x00},
-    /* 0x2A '*' */ {0x08, 0x2A, 0x1C, 0x2A, 0x08},
-    /* 0x2B '+' */ {0x08, 0x08, 0x3E, 0x08, 0x08},
-    /* 0x2C ',' */ {0x00, 0x50, 0x30, 0x00, 0x00},
-    /* 0x2D '-' */ {0x08, 0x08, 0x08, 0x08, 0x08},
-    /* 0x2E '.' */ {0x00, 0x60, 0x60, 0x00, 0x00},
-    /* 0x2F '/' */ {0x20, 0x10, 0x08, 0x04, 0x02},
-    /* 0x30 '0' */ {0x3E, 0x51, 0x49, 0x45, 0x3E},
-    /* 0x31 '1' */ {0x00, 0x42, 0x7F, 0x40, 0x00},
-    /* 0x32 '2' */ {0x42, 0x61, 0x51, 0x49, 0x46},
-    /* 0x33 '3' */ {0x21, 0x41, 0x45, 0x4B, 0x31},
-    /* 0x34 '4' */ {0x18, 0x14, 0x12, 0x7F, 0x10},
-    /* 0x35 '5' */ {0x27, 0x45, 0x45, 0x45, 0x39},
-    /* 0x36 '6' */ {0x3C, 0x4A, 0x49, 0x49, 0x30},
-    /* 0x37 '7' */ {0x01, 0x71, 0x09, 0x05, 0x03},
-    /* 0x38 '8' */ {0x36, 0x49, 0x49, 0x49, 0x36},
-    /* 0x39 '9' */ {0x06, 0x49, 0x49, 0x29, 0x1E},
-    /* 0x3A ':' */ {0x00, 0x36, 0x36, 0x00, 0x00},
-    /* 0x3B ';' */ {0x00, 0x56, 0x36, 0x00, 0x00},
-    /* 0x3C '<' */ {0x00, 0x08, 0x14, 0x22, 0x41},
-    /* 0x3D '=' */ {0x14, 0x14, 0x14, 0x14, 0x14},
-    /* 0x3E '>' */ {0x41, 0x22, 0x14, 0x08, 0x00},
-    /* 0x3F '?' */ {0x02, 0x01, 0x51, 0x09, 0x06},
-    /* 0x40 '@' */ {0x32, 0x49, 0x79, 0x41, 0x3E},
-    /* 0x41 'A' */ {0x7E, 0x11, 0x11, 0x11, 0x7E},
-    /* 0x42 'B' */ {0x7F, 0x49, 0x49, 0x49, 0x36},
-    /* 0x43 'C' */ {0x3E, 0x41, 0x41, 0x41, 0x22},
-    /* 0x44 'D' */ {0x7F, 0x41, 0x41, 0x22, 0x1C},
-    /* 0x45 'E' */ {0x7F, 0x49, 0x49, 0x49, 0x41},
-    /* 0x46 'F' */ {0x7F, 0x09, 0x09, 0x01, 0x01},
-    /* 0x47 'G' */ {0x3E, 0x41, 0x41, 0x51, 0x32},
-    /* 0x48 'H' */ {0x7F, 0x08, 0x08, 0x08, 0x7F},
-    /* 0x49 'I' */ {0x00, 0x41, 0x7F, 0x41, 0x00},
-    /* 0x4A 'J' */ {0x20, 0x40, 0x41, 0x3F, 0x01},
-    /* 0x4B 'K' */ {0x7F, 0x08, 0x14, 0x22, 0x41},
-    /* 0x4C 'L' */ {0x7F, 0x40, 0x40, 0x40, 0x40},
-    /* 0x4D 'M' */ {0x7F, 0x02, 0x04, 0x02, 0x7F},
-    /* 0x4E 'N' */ {0x7F, 0x04, 0x08, 0x10, 0x7F},
-    /* 0x4F 'O' */ {0x3E, 0x41, 0x41, 0x41, 0x3E},
-    /* 0x50 'P' */ {0x7F, 0x09, 0x09, 0x09, 0x06},
-    /* 0x51 'Q' */ {0x3E, 0x41, 0x51, 0x21, 0x5E},
-    /* 0x52 'R' */ {0x7F, 0x09, 0x19, 0x29, 0x46},
-    /* 0x53 'S' */ {0x46, 0x49, 0x49, 0x49, 0x31},
-    /* 0x54 'T' */ {0x01, 0x01, 0x7F, 0x01, 0x01},
-    /* 0x55 'U' */ {0x3F, 0x40, 0x40, 0x40, 0x3F},
-    /* 0x56 'V' */ {0x1F, 0x20, 0x40, 0x20, 0x1F},
-    /* 0x57 'W' */ {0x7F, 0x20, 0x18, 0x20, 0x7F},
-    /* 0x58 'X' */ {0x63, 0x14, 0x08, 0x14, 0x63},
-    /* 0x59 'Y' */ {0x03, 0x04, 0x78, 0x04, 0x03},
-    /* 0x5A 'Z' */ {0x61, 0x51, 0x49, 0x45, 0x43},
-    /* 0x5B '[' */ {0x00, 0x00, 0x7F, 0x41, 0x41},
-    /* 0x5C '\' */ {0x02, 0x04, 0x08, 0x10, 0x20},
-    /* 0x5D ']' */ {0x41, 0x41, 0x7F, 0x00, 0x00},
-    /* 0x5E '^' */ {0x04, 0x02, 0x01, 0x02, 0x04},
-    /* 0x5F '_' */ {0x40, 0x40, 0x40, 0x40, 0x40},
-    /* 0x60 '`' */ {0x00, 0x01, 0x02, 0x04, 0x00},
-    /* 0x61 'a' */ {0x20, 0x54, 0x54, 0x54, 0x78},
-    /* 0x62 'b' */ {0x7F, 0x48, 0x44, 0x44, 0x38},
-    /* 0x63 'c' */ {0x38, 0x44, 0x44, 0x44, 0x20},
-    /* 0x64 'd' */ {0x38, 0x44, 0x44, 0x48, 0x7F},
-    /* 0x65 'e' */ {0x38, 0x54, 0x54, 0x54, 0x18},
-    /* 0x66 'f' */ {0x08, 0x7E, 0x09, 0x01, 0x02},
-    /* 0x67 'g' */ {0x08, 0x14, 0x54, 0x54, 0x3C},
-    /* 0x68 'h' */ {0x7F, 0x08, 0x04, 0x04, 0x78},
-    /* 0x69 'i' */ {0x00, 0x44, 0x7D, 0x40, 0x00},
-    /* 0x6A 'j' */ {0x20, 0x40, 0x44, 0x3D, 0x00},
-    /* 0x6B 'k' */ {0x00, 0x7F, 0x10, 0x28, 0x44},
-    /* 0x6C 'l' */ {0x00, 0x41, 0x7F, 0x40, 0x00},
-    /* 0x6D 'm' */ {0x7C, 0x04, 0x18, 0x04, 0x78},
-    /* 0x6E 'n' */ {0x7C, 0x08, 0x04, 0x04, 0x78},
-    /* 0x6F 'o' */ {0x38, 0x44, 0x44, 0x44, 0x38},
-    /* 0x70 'p' */ {0x7C, 0x14, 0x14, 0x14, 0x08},
-    /* 0x71 'q' */ {0x08, 0x14, 0x14, 0x18, 0x7C},
-    /* 0x72 'r' */ {0x7C, 0x08, 0x04, 0x04, 0x08},
-    /* 0x73 's' */ {0x48, 0x54, 0x54, 0x54, 0x20},
-    /* 0x74 't' */ {0x04, 0x3F, 0x44, 0x40, 0x20},
-    /* 0x75 'u' */ {0x3C, 0x40, 0x40, 0x20, 0x7C},
-    /* 0x76 'v' */ {0x1C, 0x20, 0x40, 0x20, 0x1C},
-    /* 0x77 'w' */ {0x3C, 0x40, 0x30, 0x40, 0x3C},
-    /* 0x78 'x' */ {0x44, 0x28, 0x10, 0x28, 0x44},
-    /* 0x79 'y' */ {0x0C, 0x50, 0x50, 0x50, 0x3C},
-    /* 0x7A 'z' */ {0x44, 0x64, 0x54, 0x4C, 0x44},
-    /* 0x7B '{' */ {0x00, 0x08, 0x36, 0x41, 0x00},
-    /* 0x7C '|' */ {0x00, 0x00, 0x7F, 0x00, 0x00},
-    /* 0x7D '}' */ {0x00, 0x41, 0x36, 0x08, 0x00},
-    /* 0x7E '~' */ {0x08, 0x04, 0x08, 0x10, 0x08},
-    /* 0x7F DEL */ {0x00, 0x00, 0x00, 0x00, 0x00},
-};
+static void DrawGlyph(uint16_t* fb, int fb_w, int fb_h, int x, int y, char ch, const Font& font, uint16_t color,
+                      uint16_t bg)
+{
+    if (ch < 0x20 || ch > 0x7F) ch = '?';
+    int fw = font.w, fh = font.h;
+    if (x + fw <= 0 || x >= fb_w || y + fh <= 0 || y >= fb_h) return;
+
+    // 先填充背景
+    if (bg != color) DisplayGFX::FillRect(fb, fb_w, fb_h, x, y, fw, fh, bg);
+
+    int idx = ch - 0x20;
+
+    if (fw <= 8)
+    {
+        const uint8_t* glyphs = (const uint8_t*)font.data;
+        const uint8_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+        {
+            int py = y + row;
+            if (py < 0 || py >= fb_h) continue;
+            for (int col = 0; col < fw; ++col)
+            {
+                int px = x + col;
+                if (px < 0 || px >= fb_w) continue;
+                if (glyph[row] & (0x80 >> col)) fb[py * fb_w + px] = color;
+            }
+        }
+    }
+    else if (fw <= 16)
+    {
+        const uint16_t* glyphs = (const uint16_t*)font.data;
+        const uint16_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+        {
+            int py = y + row;
+            if (py < 0 || py >= fb_h) continue;
+            for (int col = 0; col < fw; ++col)
+            {
+                int px = x + col;
+                if (px < 0 || px >= fb_w) continue;
+                if (glyph[row] & (0x8000 >> col)) fb[py * fb_w + px] = color;
+            }
+        }
+    }
+    else
+    {
+        const uint32_t* glyphs = (const uint32_t*)font.data;
+        const uint32_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+        {
+            int py = y + row;
+            if (py < 0 || py >= fb_h) continue;
+            for (int col = 0; col < fw; ++col)
+            {
+                int px = x + col;
+                if (px < 0 || px >= fb_w) continue;
+                if (glyph[row] & (0x80000000 >> col)) fb[py * fb_w + px] = color;
+            }
+        }
+    }
+}
 
 // ====== 基础绘图原语 ======
 
@@ -238,49 +203,23 @@ void DisplayGFX::FillCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, u
 
 // ====== 文字渲染 ======
 
-void DisplayGFX::DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, uint16_t color, uint16_t bg)
+// 静态版本 — 需显式传入字体
+void DisplayGFX::DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, const Font& font, uint16_t color,
+                           uint16_t bg)
 {
-    if (ch < 0x20 || ch > 0x7F) return;
-    // 整字符在屏幕外则跳过
-    if (x + kFontWidth <= 0 || x >= w || y + kFontHeight <= 0 || y >= h) return;
-
-    const uint8_t* glyph = kFont5x7[ch - 0x20];
-    for (int col = 0; col < 5; ++col)
-    {
-        int px = x + col;
-        if (px < 0 || px >= w) continue;
-        uint8_t line = glyph[col];
-        for (int row = 0; row < 8; ++row)
-        {
-            int py = y + row;
-            if (py < 0 || py >= h) continue;
-            if (line & (1 << (7 - row)))
-                fb[py * w + px] = color;
-            else if (bg != color)  // bg == color 时跳过背景（透明模式）
-                fb[py * w + px] = bg;
-        }
-    }
-    // 第 6 列（间距列）：填充背景色
-    int px6 = x + 5;
-    if (px6 >= 0 && px6 < w && bg != color)
-    {
-        for (int row = 0; row < 8; ++row)
-        {
-            int py = y + row;
-            if (py >= 0 && py < h) fb[py * w + px6] = bg;
-        }
-    }
+    DrawGlyph(fb, w, h, x, y, ch, font, color, bg);
 }
 
-void DisplayGFX::DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, uint16_t color, uint16_t bg)
+void DisplayGFX::DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, const Font& font, uint16_t color,
+                             uint16_t bg)
 {
     if (!str) return;
     int cx = x;
     while (*str)
     {
-        DrawChar(fb, w, h, cx, y, *str, color, bg);
-        cx += kFontWidth;
-        if (cx >= w) break;  // 超出屏幕，不再绘制
+        DrawGlyph(fb, w, h, cx, y, *str, font, color, bg);
+        cx += font.w;
+        if (cx >= w) break;
         str++;
     }
 }
@@ -450,29 +389,75 @@ void DisplayGFX::FillCircle(int cx, int cy, int r, uint16_t color)
     FillCircle(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, r, color);
 }
 
-void DisplayGFX::DrawChar(int x, int y, char ch, uint16_t color, uint16_t bg)
+void DisplayGFX::DrawChar(int x, int y, char ch, const Font& font, uint16_t color, uint16_t bg)
 {
+    if (ch < 0x20 || ch > 0x7F) ch = '?';
+    int fw = font.w, fh = font.h;
+
+    // k0 快速路径：直接写物理帧缓冲
     if (rotation_ == Rotation::k0)
     {
-        DrawChar(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, ch, color, bg);
+        DrawGlyph(display_.GetFramebuffer(), HwWidth(), HwHeight(), x, y, ch, font, color, bg);
         return;
     }
-    int px, py;
-    MapToPhysical(x, y, &px, &py);
-    DrawChar(display_.GetFramebuffer(), HwWidth(), HwHeight(), px, py, ch, color, bg);
+
+    // 旋转路径：每个像素走实例 DrawPixel / FillRect（自动映射坐标）
+    if (bg != color) FillRect(x, y, fw, fh, bg);
+
+    int idx = ch - 0x20;
+
+    if (fw <= 8)
+    {
+        const uint8_t* glyphs = (const uint8_t*)font.data;
+        const uint8_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+            for (int col = 0; col < fw; ++col)
+                if (glyph[row] & (0x80 >> col))
+                    DrawPixel(x + col, y + row, color);
+    }
+    else if (fw <= 16)
+    {
+        const uint16_t* glyphs = (const uint16_t*)font.data;
+        const uint16_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+            for (int col = 0; col < fw; ++col)
+                if (glyph[row] & (0x8000 >> col))
+                    DrawPixel(x + col, y + row, color);
+    }
+    else
+    {
+        const uint32_t* glyphs = (const uint32_t*)font.data;
+        const uint32_t* glyph = glyphs + idx * fh;
+        for (int row = 0; row < fh; ++row)
+            for (int col = 0; col < fw; ++col)
+                if (glyph[row] & (0x80000000 >> col))
+                    DrawPixel(x + col, y + row, color);
+    }
 }
 
-void DisplayGFX::DrawString(int x, int y, const char* str, uint16_t color, uint16_t bg)
+void DisplayGFX::DrawString(int x, int y, const char* str, const Font& font, uint16_t color, uint16_t bg)
 {
     if (!str) return;
     int cx = x;
     while (*str)
     {
-        DrawChar(cx, y, *str, color, bg);
-        cx += kFontWidth;
+        DrawChar(cx, y, *str, font, color, bg);
+        cx += font.w;
         if (cx >= GetWidth()) break;
         str++;
     }
+}
+
+// ---- 使用默认字体的重载 ----
+
+void DisplayGFX::DrawChar(int x, int y, char ch, uint16_t color, uint16_t bg)
+{
+    DrawChar(x, y, ch, *font_, color, bg);
+}
+
+void DisplayGFX::DrawString(int x, int y, const char* str, uint16_t color, uint16_t bg)
+{
+    DrawString(x, y, str, *font_, color, bg);
 }
 
 // ====== 测试程序（全部使用实例方法，自动跟随旋转） ======
@@ -727,7 +712,8 @@ void DisplayGFX::TestColorSquares()
 void DisplayGFX::TestFont()
 {
     int w = GetWidth(), h = GetHeight();
-    // 渐变背景（逐行填充）
+
+    // 渐变背景
     for (int y = 0; y < h; ++y)
     {
         float t = (float)y / h;
@@ -738,34 +724,38 @@ void DisplayGFX::TestFont()
         DrawHLine(0, y, w, bg);
     }
 
-    DrawString(10, 10, "DisplayGFX Font Test", GFX_WHITE, GFX_BLACK);
-    DrawString(10, 22, "6x8 ASCII 0x20-0x7F", GFX_GRAY, GFX_BLACK);
+    // ---- 8x16 小字：ASCII 字表 ----
+    int fw = kFont8x16.w, fh = kFont8x16.h;
+    DrawString(10, 10, "Font: 8x16 Heiti — ASCII 0x20-0x7F", kFont8x16, GFX_WHITE, GFX_BLACK);
 
-    // 全部可打印 ASCII 字符 (16 列 × 6 行)
     for (int row = 0; row < 6; ++row)
     {
         for (int col = 0; col < 16; ++col)
         {
             char ch = (char)(0x20 + row * 16 + col);
-            int cx = 10 + col * (kFontWidth + 2);
-            int cy = 40 + row * (kFontHeight + 2);
+            int cx = 10 + col * (fw + 1);
+            int cy = 10 + fh + 4 + row * (fh + 1);
             uint16_t fg = (col % 2 == 0) ? GFX_YELLOW : GFX_CYAN;
             char buf[2] = {ch, '\0'};
-            DrawString(cx, cy, buf, fg, GFX_BLACK);
+            DrawString(cx, cy, buf, kFont8x16, fg, GFX_BLACK);
         }
     }
 
-    int by = 40 + 6 * (kFontHeight + 2) + 5;
-    DrawHLine(10, by, w - 20, GFX_WHITE);
+    int y0 = 10 + fh + 4 + 6 * (fh + 1) + 8;
+    DrawHLine(10, y0, w - 20, GFX_WHITE);
 
-    DrawString(10, by + 10, "Hello from ESP32-P4!", GFX_GREEN, GFX_BLACK);
-    DrawString(10, by + 22, "0123456789 !@#$%^&*()", GFX_YELLOW, GFX_BLACK);
-    DrawString(10, by + 34, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", GFX_RED, GFX_BLACK);
-    DrawString(10, by + 46, "abcdefghijklmnopqrstuvwxyz", GFX_CYAN, GFX_BLACK);
-    DrawString(10, by + 58, "The quick brown fox jumps", GFX_ORANGE, GFX_BLACK);
+    // ---- 16x32 正文 ----
+    DrawString(10, y0 + 8, "Hello ESP32-P4!", kFont16x32, GFX_GREEN, GFX_BLACK);
+    DrawString(10, y0 + 8 + 34, "0123456789", kFont16x32, GFX_YELLOW, GFX_BLACK);
+
+    // ---- 24x48 标题 ----
+    DrawString(10, y0 + 8 + 68 + 8, "24x48 Heiti", kFont24x48, GFX_RED, GFX_BLACK);
+
+    // ---- 32x64 大标题 ----
+    DrawString(10, y0 + 8 + 68 + 8 + 52 + 8, "32x64", kFont32x64, GFX_CYAN, GFX_BLACK);
 
     display_.Flush();
-    vTaskDelay(pdMS_TO_TICKS(3000));
+    vTaskDelay(pdMS_TO_TICKS(5000));
 }
 
 void DisplayGFX::TestAll()

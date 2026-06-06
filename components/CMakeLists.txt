@@ -12,6 +12,7 @@ set(src_dirs
     key
     buzzer
     display
+    display/font
 )
 
 set(include_dirs
@@ -28,6 +29,7 @@ set(include_dirs
     key
     buzzer
     display
+    display/font
 )
 
 set(required_components

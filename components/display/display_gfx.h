@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "display.h"
+#include "font/font.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -25,7 +26,8 @@
 //
 // 使用方式：
 //   DisplayGFX gfx(display);
-//   gfx.SetRotation(Rotation::k90);  // 逆时针旋转 90°
+//   gfx.SetRotation(Rotation::k90);
+//   gfx.SetFont(&kFont16x32);                     // 切换字体
 //   gfx.FillRect(10, 10, 100, 50, GFX_RED);
 //   gfx.DrawString(10, 10, "Hello", GFX_WHITE, GFX_BLACK);
 //
@@ -48,11 +50,15 @@ class DisplayGFX
     void SetRotation(Rotation rot);
     Rotation GetRotation() const { return rotation_; }
 
-    // 逻辑宽高（自动跟随旋转交换）
     int GetWidth() const;
     int GetHeight() const;
 
-    // ====== 实例方法（推荐）— 自动应用旋转、自动获取帧缓冲和尺寸 ======
+    // ====== 字体 ======
+
+    void SetFont(const Font* font) { font_ = font; }
+    const Font* GetFont() const { return font_; }
+
+    // ====== 实例方法（推荐）— 自动应用旋转、使用内置字体 ======
 
     void DrawPixel(int x, int y, uint16_t color);
     void DrawHLine(int x, int y, int len, uint16_t color);
@@ -63,12 +69,14 @@ class DisplayGFX
     void DrawCircle(int cx, int cy, int r, uint16_t color);
     void FillCircle(int cx, int cy, int r, uint16_t color);
 
-    // 绘制 ASCII 字符（6×8 点阵，码点 0x20–0x7F）
-    // bg == color 时背景透明
+    // 使用指定字体
+    void DrawChar(int x, int y, char ch, const Font& font, uint16_t color, uint16_t bg);
+    void DrawString(int x, int y, const char* str, const Font& font, uint16_t color, uint16_t bg);
+    // 使用默认字体 (SetFont 设置，初始为 kFont8x16)
     void DrawChar(int x, int y, char ch, uint16_t color, uint16_t bg);
     void DrawString(int x, int y, const char* str, uint16_t color, uint16_t bg);
 
-    // ====== 静态方法 — 直接操作帧缓冲 ======
+    // ====== 静态方法 — 直接操作帧缓冲（需显式传入字体） ======
 
     static void DrawPixel(uint16_t* fb, int w, int h, int x, int y, uint16_t color);
     static void DrawHLine(uint16_t* fb, int w, int h, int x, int y, int len, uint16_t color);
@@ -79,11 +87,10 @@ class DisplayGFX
     static void DrawCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
     static void FillCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
 
-    static constexpr int kFontWidth = 6;
-    static constexpr int kFontHeight = 8;
-
-    static void DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, uint16_t color, uint16_t bg);
-    static void DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, uint16_t color, uint16_t bg);
+    static void DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, const Font& font, uint16_t color,
+                         uint16_t bg);
+    static void DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, const Font& font, uint16_t color,
+                           uint16_t bg);
 
     // ====== 测试程序 ======
 
@@ -92,7 +99,7 @@ class DisplayGFX
     void TestStarfield();
     void TestCubeRotation();
     void TestColorSquares();
-    void TestAll();  // 依次运行全部测试
+    void TestAll();
 
     Display& GetDisplay() { return display_; }
 
@@ -103,4 +110,5 @@ class DisplayGFX
 
     Display& display_;
     Rotation rotation_ = Rotation::k0;
+    const Font* font_ = &kFont8x16;  // 默认 8x16 黑体
 };
