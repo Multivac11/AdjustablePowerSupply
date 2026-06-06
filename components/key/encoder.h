@@ -57,7 +57,7 @@ class Encoder
     int32_t last_dir_ = 0;
 
     static constexpr int32_t PCNT_LIMIT = 32767;
-    static constexpr int COOLDOWN_MAX = 15;  // 15 × 20ms = 300ms 冷却
+    static constexpr int COOLDOWN_MAX = 10;  // 20 × 20ms = 400ms 冷却
 
     static constexpr int MAX_LISTENERS = 6;
     QueueHandle_t listeners_[MAX_LISTENERS] = {};
