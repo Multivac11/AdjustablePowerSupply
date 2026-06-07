@@ -28,10 +28,6 @@ class DisplayUI
 
     void UpdateUI();
 
-    static void AdjustableListenerTask(void*);
-
-    void AdjustableListener();
-
    private:
     Display display_;  // 硬件驱动
     DisplayGFX gfx_;   // 软件图形层（引用 display_）

@@ -198,6 +198,9 @@ class MP4201 : public I2CDevice
     // ADC 实时读数（10-bit）
     bool ReadADC(ADCReadings& adc);
 
+    // 屏蔽 NTC 故障（无 NTC 热敏电阻时需要）
+    bool MaskNTCFault();
+
     // OTP 信息
     bool ReadOTPConfigCode(uint8_t& code);
     bool ReadOTPVersion(uint8_t& version);

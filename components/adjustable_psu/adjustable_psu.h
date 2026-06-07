@@ -24,6 +24,8 @@ class AdjustablePSU
     struct Event
     {
         MP4201::ADCReadings adc;
+        MP4201::StatusWord status;
+        MP4201::TemperatureStatus temp_status;
     };
 
     AdjustablePSU() = default;
@@ -64,5 +66,5 @@ class AdjustablePSU
     MP4201* mp4201_ = nullptr;
 
     MP4201::SwitchingFrequency current_freq_ = MP4201::SwitchingFrequency::KHZ_400;
-    MP4201::OperationMode current_mode_ = MP4201::OperationMode::FCCM_FSS;
+    MP4201::OperationMode current_mode_ = MP4201::OperationMode::FCCM;
 };

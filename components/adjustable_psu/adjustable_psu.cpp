@@ -30,10 +30,48 @@ bool AdjustablePSU::AdjustablePSUInit()
     // 上电初始化为默认配置
     SetFrequency(current_freq_);
     SetMode(current_mode_);
-    mp4201_->SetInputRegulation(0.0f);  // 禁掉输入电压调节
+
+    // MP4201::Direction direction;
+    // mp4201_->GetDirection(direction);
+    // ESP_LOGI(TAG, "direction: %d", direction);
+
+    // mp4201_->SetInputRegulation(0.0f);  // 禁掉输入电压调节
+    // mp4201_->MaskNTCFault();    // 无 NTC 热敏电阻，屏蔽故障
+    mp4201_->ClearFaults();
     mp4201_->DisableOutput();
     mp4201_->SetDirection(MP4201::Direction::VIN_TO_OUT);
     mp4201_->SetSenseResistors(MP4201::SenseResistor::R5_MOHM, MP4201::SenseResistor::R5_MOHM);
+    MP4201::StatusWord st;
+    mp4201_->ReadStatusWord(st);
+    MP4201::TemperatureStatus tp;
+    mp4201_->ReadTemperatureStatus(tp);
+    ESP_LOGI(TAG, "STATUS_TEMPERATURE = 0x%02X (OT_FAULT=%d OT_WARNING=%d NTC_FAULT=%d)", tp.raw, tp.ot_fault(),
+             tp.ot_warning(), tp.ntc_fault());
+    mp4201_->EnableOutput();
+    mp4201_->DisableOutput();
+    mp4201_->SetOutputVoltage(8.0f);  // 设输出电压 5V
+    mp4201_->EnableOutput();
+    // mp4201_->ClearFaults();           // 清除锁存故障位
+
+    // if (mp4201_->EnableOutput())
+    //     ESP_LOGI(TAG, "EnableOutput OK");
+    // else
+    //     ESP_LOGE(TAG, "EnableOutput FAILED");
+
+    // // 回读验证
+    // {
+    //     uint8_t op;
+    //     mp4201_->IsEnabled(op);
+    //     ESP_LOGI(TAG, "OPERATION = 0x%02X (EN=%d)", op, (op >> 7) & 1);
+
+    //     float vout;
+    //     mp4201_->GetOutputVoltage(vout);
+    //     ESP_LOGI(TAG, "VOUT_COMMAND = %.2fV", vout);
+
+    //     MP4201::StatusWord st;
+    //     mp4201_->ReadStatusWord(st);
+    //     ESP_LOGI(TAG, "STATUS_WORD = 0x%04X (PG_FAULT=%d)", st.raw, st.pg_fault());
+    // }
 
     xTaskCreate(PowerSupplyTask, "PowerSupplyTask", 8192, this, 5, nullptr);
 
@@ -51,6 +89,10 @@ void AdjustablePSU::PowerSupply()
     {
         MP4201::ADCReadings adc;
         mp4201_->ReadADC(adc);
+        MP4201::StatusWord st;
+        mp4201_->ReadStatusWord(st);
+        MP4201::TemperatureStatus ts;
+        mp4201_->ReadTemperatureStatus(ts);
 
         for (int i = 0; i < listener_count_; ++i)
         {
@@ -58,6 +100,8 @@ void AdjustablePSU::PowerSupply()
             {
                 Event *p = &ev_;
                 p->adc = adc;
+                p->status = st;
+                p->temp_status = ts;
                 xQueueOverwrite(listeners_[i], p);
             }
         }

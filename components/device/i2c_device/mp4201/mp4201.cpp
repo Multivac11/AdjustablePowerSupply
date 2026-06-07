@@ -518,3 +518,15 @@ bool MP4201::ReadOTPVersion(uint8_t& version)
 {
     return ReadByte(OTP_VERSION, version) == ESP_OK;
 }
+
+bool MP4201::MaskNTCFault()
+{
+    uint8_t mask;
+    if (ReadByte(MFR_STATUS_MASK, mask) != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Read MFR_STATUS_MASK failed");
+        return false;
+    }
+    mask |= (1 << 5);  // 屏蔽 NTC 故障（STATUS_TEMPERATURE bit5）
+    return WriteByte(MFR_STATUS_MASK, mask) == ESP_OK;
+}
