@@ -204,7 +204,7 @@ class MP4201 : public I2CDevice
 
    private:
     // PMBus 读写辅助（寄存器地址 1 字节）
-    esp_err_t SendByte(uint8_t reg_addr);           // S+AddrW+A+Cmd+A+P（无数据字节）
+    esp_err_t SendByte(uint8_t reg_addr);  // S+AddrW+A+Cmd+A+P（无数据字节）
     esp_err_t WriteByte(uint8_t reg_addr, uint8_t data);
     esp_err_t WriteWord(uint8_t reg_addr, uint16_t data);
     esp_err_t ReadByte(uint8_t reg_addr, uint8_t& data);

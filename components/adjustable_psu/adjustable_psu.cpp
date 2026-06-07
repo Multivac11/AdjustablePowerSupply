@@ -30,8 +30,8 @@ bool AdjustablePSU::AdjustablePSUInit()
     // 上电初始化为默认配置
     SetFrequency(current_freq_);
     SetMode(current_mode_);
-    mp4201_->DisableOutput();
     mp4201_->SetInputRegulation(0.0f);  // 禁掉输入电压调节
+    mp4201_->DisableOutput();
     mp4201_->SetDirection(MP4201::Direction::VIN_TO_OUT);
     mp4201_->SetSenseResistors(MP4201::SenseResistor::R5_MOHM, MP4201::SenseResistor::R5_MOHM);
 
@@ -52,8 +52,45 @@ void AdjustablePSU::PowerSupply()
         MP4201::ADCReadings adc;
         mp4201_->ReadADC(adc);
 
+        for (int i = 0; i < listener_count_; ++i)
+        {
+            if (listeners_[i])
+            {
+                Event *p = &ev_;
+                p->adc = adc;
+                xQueueOverwrite(listeners_[i], p);
+            }
+        }
+
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+}
+
+bool AdjustablePSU::RegisterListener(QueueHandle_t queue)
+{
+    if (queue == nullptr || listener_count_ >= MAX_LISTENERS) return false;
+
+    for (int i = 0; i < listener_count_; ++i)
+    {
+        if (listeners_[i] == queue) return true;
+    }
+
+    listeners_[listener_count_++] = queue;
+    return true;
+}
+
+bool AdjustablePSU::UnregisterListener(QueueHandle_t queue)
+{
+    for (int i = 0; i < listener_count_; ++i)
+    {
+        if (listeners_[i] == queue)
+        {
+            for (int j = i; j < listener_count_ - 1; ++j) listeners_[j] = listeners_[j + 1];
+            listeners_[--listener_count_] = nullptr;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool AdjustablePSU::SetFrequency(MP4201::SwitchingFrequency freq)

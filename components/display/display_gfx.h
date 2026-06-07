@@ -22,22 +22,12 @@
 #define GFX_DARK 0x4208
 #define GFX_ORANGE 0xFD20
 
-// 软件图形驱动层 — 封装 Display 硬件驱动，提供画点、画线、画圆、写字符串等绘图原语
-//
-// 使用方式：
-//   DisplayGFX gfx(display);
-//   gfx.SetRotation(Rotation::k90);
-//   gfx.SetFont(&kFont16x32);                     // 切换字体
-//   gfx.FillRect(10, 10, 100, 50, GFX_RED);
-//   gfx.DrawString(10, 10, "Hello", GFX_WHITE, GFX_BLACK);
-//
-// 同时保留静态方法用于直接操作帧缓冲（无旋转，原始物理坐标）。
 enum class Rotation
 {
     k0 = 0,
-    k90 = 90,    // 逆时针 90°
+    k90 = 90,  // 逆时针 90°
     k180 = 180,
-    k270 = 270   // 逆时针 270°（等价于顺时针 90°）
+    k270 = 270  // 逆时针 270°（等价于顺时针 90°）
 };
 
 class DisplayGFX
@@ -87,10 +77,10 @@ class DisplayGFX
     static void DrawCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
     static void FillCircle(uint16_t* fb, int w, int h, int cx, int cy, int r, uint16_t color);
 
-    static void DrawChar(uint16_t* fb, int w, int h, int x, int y, char ch, const Font& font, uint16_t color,
-                         uint16_t bg);
-    static void DrawString(uint16_t* fb, int w, int h, int x, int y, const char* str, const Font& font, uint16_t color,
-                           uint16_t bg);
+    static void DrawChar(
+        uint16_t* fb, int w, int h, int x, int y, char ch, const Font& font, uint16_t color, uint16_t bg);
+    static void DrawString(
+        uint16_t* fb, int w, int h, int x, int y, const char* str, const Font& font, uint16_t color, uint16_t bg);
 
     // ====== 测试程序 ======
 

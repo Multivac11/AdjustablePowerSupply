@@ -1,11 +1,15 @@
 #pragma once
 
+#include <stdio.h>
+
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "i2c_bus.h"
 #include "mp4201/mp4201.h"
+
+#define MAX_LISTENERS 10
 
 // 可调电源应用层 — 通过 MCP4725 DAC 配置 MP4201 的 FREQ / MODE 引脚
 class AdjustablePSU
@@ -16,6 +20,11 @@ class AdjustablePSU
         static AdjustablePSU instance;
         return instance;
     }
+
+    struct Event
+    {
+        MP4201::ADCReadings adc;
+    };
 
     AdjustablePSU() = default;
 
@@ -32,6 +41,10 @@ class AdjustablePSU
     // 将当前 FREQ / MODE 配置写入 EEPROM，掉电后自动恢复
     bool SaveConfig();
 
+    bool RegisterListener(QueueHandle_t queue);
+
+    bool UnregisterListener(QueueHandle_t queue);
+
     static void PowerSupplyTask(void* pvParameters);
 
     void PowerSupply();
@@ -41,10 +54,15 @@ class AdjustablePSU
     static constexpr uint16_t DAC_FREQ_ADDR = 0x60;  // A0=GND → FREQ
     static constexpr uint16_t DAC_MODE_ADDR = 0x61;  // A0=VDD → MODE
 
+    QueueHandle_t queue_;
+    QueueHandle_t listeners_[MAX_LISTENERS] = {};
+    uint8_t listener_count_ = 0;
+    Event ev_;
+
     MCP4725* freq_dac_ = nullptr;
     MCP4725* mode_dac_ = nullptr;
     MP4201* mp4201_ = nullptr;
 
     MP4201::SwitchingFrequency current_freq_ = MP4201::SwitchingFrequency::KHZ_400;
-    MP4201::OperationMode current_mode_ = MP4201::OperationMode::FCCM;
+    MP4201::OperationMode current_mode_ = MP4201::OperationMode::FCCM_FSS;
 };

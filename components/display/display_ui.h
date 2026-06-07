@@ -1,17 +1,12 @@
 #pragma once
 
+#include "adjustable_psu.h"
 #include "display.h"
 #include "display_gfx.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-// UI 应用层 — 单例，持有硬件驱动 (Display) 和软件图形层 (DisplayGFX)
-//
-// 外部获取方式：
-//   auto& ui = DisplayUI::GetInstance();
-//   ui.GetDisplay().Fill(GFX_BLACK);
-//   ui.GetGFX().DrawString(10, 10, "Hello", GFX_WHITE, GFX_BLACK);
 class DisplayUI
 {
    public:
@@ -33,6 +28,13 @@ class DisplayUI
 
     void UpdateUI();
 
-    Display display_;   // 硬件驱动
-    DisplayGFX gfx_;    // 软件图形层（引用 display_）
+    static void AdjustableListenerTask(void*);
+
+    void AdjustableListener();
+
+   private:
+    Display display_;  // 硬件驱动
+    DisplayGFX gfx_;   // 软件图形层（引用 display_）
+
+    AdjustablePSU::Event adjustable_ev_;
 };

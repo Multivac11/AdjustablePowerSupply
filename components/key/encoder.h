@@ -7,6 +7,8 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#define MAX_LISTENERS 10
+
 // EC11 旋钮编码器 — 硬件 PCNT 正交解码，A/B 相默认上拉，C 接地
 class Encoder
 {
@@ -59,7 +61,6 @@ class Encoder
     static constexpr int32_t PCNT_LIMIT = 32767;
     static constexpr int COOLDOWN_MAX = 10;  // 20 × 20ms = 400ms 冷却
 
-    static constexpr int MAX_LISTENERS = 6;
     QueueHandle_t listeners_[MAX_LISTENERS] = {};
     uint8_t listener_count_ = 0;
 };
